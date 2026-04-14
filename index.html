@@ -379,9 +379,8 @@
         <span class="ctrl-val" id="bpmVal">120</span>
       </div>
       <div class="ctrl-row" style="margin-top: 10px;">
-        <span class="ctrl-key"></span>
-        <button class="tui-action" id="randBtn">rand</button>
-        <button class="tui-action" id="clearBtn">clear</button>
+        <button class="tui-btn" id="randBtn">random(r)</button>
+        <button class="tui-btn" id="clearBtn">clear(c)</button>
       </div>
 
       <div class="panel-rule"></div>
@@ -1129,21 +1128,22 @@ document.getElementById('randBtn').addEventListener('click', () => {
   renderAll();
 });
 document.addEventListener('keydown', e => {
+  if (e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
   if (e.target !== document.body) return;
   if (e.code === 'Space') {
     e.preventDefault(); S.playing ? stopSeq() : startSeq();
   }
   if (e.key === 'h' || e.key === 'H') { helpVisible ? hideHelp() : showHelp(); }
+  if (e.key === 'c' || e.key === 'C') document.getElementById('clearBtn').click();
+  if (e.key === 'r' || e.key === 'R') document.getElementById('randBtn').click();
   const pageNum = parseInt(e.key);
   if (pageNum >= 1 && pageNum <= 8) switchPage(pageNum - 1);
   if (e.code === 'ArrowUp') {
-    e.preventDefault();
     copiedPage = S.pages[S.page].map(row => row.map(n => n ? {...n} : null));
     pasteBtn.disabled = false;
     pasteBtn.classList.add('has-copy');
   }
   if (e.code === 'ArrowDown') {
-    e.preventDefault();
     if (!copiedPage) return;
     S.pages[S.page] = copiedPage.map(row => row.map(n => n ? {...n} : null));
     clearSel(); renderAll();
@@ -1162,8 +1162,8 @@ const HELP_COLS = [
   ['row',  'drag',           'paint notes'],
   ['row',  'click note',     'select note'],
   ['row',  'click selected', 'erase note'],
-  ['row',  'rand',           'ambient pattern + scale'],
-  ['row',  'clear',          'erase all'],
+  ['row',  'R / rand',        'ambient pattern + scale'],
+  ['row',  'C / clear',      'erase all'],
   ['gap'],
   ['head', 'PAGES', ''],
   ['row',  '1 – 8',   'switch page'],
