@@ -10,7 +10,10 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-    :root { --accent: #fff; }
+    :root {
+      --accent: #fff;
+      --cell: clamp(16px, calc((100vw - 71px) / 16), 38px);
+    }
 
     body {
       background: #000;
@@ -19,7 +22,7 @@
       font-size: 14px;
       letter-spacing: 3px;
       min-height: 100vh;
-      padding: 32px 0 48px;
+      padding: 32px 8px 48px;
       user-select: none;
       -webkit-user-select: none;
     }
@@ -78,7 +81,7 @@
     /* ── Step pips ────────────────────────────────────── */
     .step-bar {
       display: grid;
-      grid-template-columns: repeat(16, 38px);
+      grid-template-columns: repeat(16, var(--cell));
       gap: 3px;
       padding: 0 5px;
       margin-bottom: 6px;
@@ -95,8 +98,8 @@
     /* ── Grid ─────────────────────────────────────────── */
     .grid {
       display: grid;
-      grid-template-columns: repeat(16, 38px);
-      grid-template-rows:    repeat(16, 38px);
+      grid-template-columns: repeat(16, var(--cell));
+      grid-template-rows:    repeat(16, var(--cell));
       gap: 3px;
       padding: 4px;
       background: #000;
