@@ -994,12 +994,19 @@ function reflectNote(note) {
   document.querySelectorAll('#waveGroup .tui-btn').forEach(b =>
     b.classList.toggle('sel', b.dataset.wave === note.wave));
   document.getElementById('scaleSelect').value = note.scale;
+  const atk = note.attack ?? FX.attack;
+  const det = note.detune ?? FX.detune;
+  document.getElementById('atkSlider').value = Math.round(atk * 1000);
+  document.getElementById('atkVal').textContent = `${Math.round(atk * 1000)}ms`;
+  document.getElementById('detSlider').value = det;
+  document.getElementById('detVal').textContent = `${det}¢`;
 }
 
 /* ── Audio ──────────────────────────────────────────── */
 function playTone(freq, note, when) {
   const dur = note.decay;
-  const atk = Math.max(FX.attack, 0.001);
+  const atk = Math.max(note.attack ?? FX.attack, 0.001);
+  const det = note.detune ?? FX.detune;
   const osc  = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = note.wave;
@@ -1014,12 +1021,12 @@ function playTone(freq, note, when) {
   osc.start(when);
   osc.stop(when + dur + 0.02);
 
-  if (FX.detune > 0) {
+  if (det > 0) {
     const osc2 = audioCtx.createOscillator();
     const gain2 = audioCtx.createGain();
     osc2.type = note.wave;
     osc2.frequency.value = freq;
-    osc2.detune.value = FX.detune;
+    osc2.detune.value = det;
     gain2.gain.setValueAtTime(0, when);
     gain2.gain.linearRampToValueAtTime(pk * 0.55, when + atk);
     gain2.gain.exponentialRampToValueAtTime(pk * 0.55 * 0.36, when + atk + 0.054);
@@ -1098,7 +1105,7 @@ function buildGrid() {
 
 /* ── Cell activation ────────────────────────────────── */
 function makeNote() {
-  return { wave: S.wave, vol: S.volume, decay: S.decay, scale: S.scale };
+  return { wave: S.wave, vol: S.volume, decay: S.decay, scale: S.scale, attack: FX.attack, detune: FX.detune };
 }
 
 function activateCell(r, c) {
@@ -1299,10 +1306,12 @@ document.getElementById('randBtn').addEventListener('click', () => {
   function rndNote(softBias) {
     const soft = Math.random() < (softBias ?? 0.7);
     return {
-      wave:  WAVE_POOL[Math.floor(Math.random() * WAVE_POOL.length)],
-      vol:   soft ? 0.28 + Math.random() * 0.22 : 0.50 + Math.random() * 0.20,
-      decay: soft ? 0.55 + Math.random() * 0.65 : 0.18 + Math.random() * 0.28,
-      scale: chosenScale,
+      wave:   WAVE_POOL[Math.floor(Math.random() * WAVE_POOL.length)],
+      vol:    soft ? 0.28 + Math.random() * 0.22 : 0.50 + Math.random() * 0.20,
+      decay:  soft ? 0.55 + Math.random() * 0.65 : 0.18 + Math.random() * 0.28,
+      scale:  chosenScale,
+      attack: FX.attack,
+      detune: FX.detune,
     };
   }
 
@@ -1315,9 +1324,9 @@ document.getElementById('randBtn').addEventListener('click', () => {
 
   // Anchor notes on strong beats for rhythmic grounding
   if (Math.random() < 0.78)
-    S.cells[anchorRow][0] = { wave: 'sine', vol: 0.38 + Math.random() * 0.15, decay: 0.85 + Math.random() * 0.6,  scale: chosenScale };
+    S.cells[anchorRow][0] = { wave: 'sine', vol: 0.38 + Math.random() * 0.15, decay: 0.85 + Math.random() * 0.6,  scale: chosenScale, attack: FX.attack, detune: FX.detune };
   if (Math.random() < 0.55)
-    S.cells[anchorRow][8] = { wave: 'sine', vol: 0.32 + Math.random() * 0.12, decay: 0.75 + Math.random() * 0.5,  scale: chosenScale };
+    S.cells[anchorRow][8] = { wave: 'sine', vol: 0.32 + Math.random() * 0.12, decay: 0.75 + Math.random() * 0.5,  scale: chosenScale, attack: FX.attack, detune: FX.detune };
 
   // Sparse melodic scatter
   for (let r = lo; r <= hi; r++) {
@@ -1332,7 +1341,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
     const bassRow = 13 + Math.floor(Math.random() * 3);
     for (const c of beats) {
       if (Math.random() < 0.45)
-        S.cells[bassRow][c] = { wave: 'sine', vol: 0.22 + Math.random() * 0.12, decay: 1.0 + Math.random() * 0.8, scale: chosenScale };
+        S.cells[bassRow][c] = { wave: 'sine', vol: 0.22 + Math.random() * 0.12, decay: 1.0 + Math.random() * 0.8, scale: chosenScale, attack: FX.attack, detune: FX.detune };
     }
   }
   renderAll();
@@ -1583,6 +1592,7 @@ document.addEventListener('keyup', e => {
 document.getElementById('atkSlider').addEventListener('input', function () {
   FX.attack = this.value / 1000;
   document.getElementById('atkVal').textContent = `${this.value}ms`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].attack = FX.attack;
 });
 document.getElementById('cutSlider').addEventListener('input', function () {
   const hz = Math.round(200 * Math.pow(100, this.value / 100));
@@ -1600,6 +1610,7 @@ document.getElementById('resSlider').addEventListener('input', function () {
 document.getElementById('detSlider').addEventListener('input', function () {
   FX.detune = +this.value;
   document.getElementById('detVal').textContent = `${this.value}¢`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].detune = FX.detune;
 });
 document.getElementById('trmSlider').addEventListener('input', function () {
   const rate = this.value / 10;
