@@ -1,0 +1,1320 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IG01</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root { --accent: #fff; }
+
+    body {
+      background: #000;
+      color: #fff;
+      font-family: 'Share Tech Mono', ui-monospace, monospace;
+      font-size: 14px;
+      letter-spacing: 3px;
+      min-height: 100vh;
+      padding: 32px 0 48px;
+      user-select: none;
+      -webkit-user-select: none;
+    }
+
+    /* ── CRT overlays ─────────────────────────────────── */
+    #scanlines {
+      position: fixed; inset: 0;
+      background: repeating-linear-gradient(
+        to bottom,
+        transparent 0px, transparent 1px,
+        rgba(0,0,0,0.07) 1px, rgba(0,0,0,0.07) 2px
+      );
+      pointer-events: none; z-index: 200;
+    }
+    #vignette {
+      position: fixed; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.55) 100%);
+      pointer-events: none; z-index: 150;
+    }
+    #grain {
+      position: fixed; inset: 0;
+      width: 100%; height: 100%;
+      pointer-events: none; z-index: 100;
+    }
+
+    /* ── Instrument column ────────────────────────────── */
+    .instrument {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      width: fit-content;
+      margin: 0 auto;
+    }
+
+    /* ── Header ───────────────────────────────────────── */
+    .hdr {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 22px;
+    }
+    .hdr-left {
+      color: rgba(255,255,255,0.45);
+    }
+    #selLabel { margin-left: 12px; }
+    /* ── Color legend ─────────────────────────────────── */
+    #legend {
+      display: flex;
+      gap: 6px;
+      letter-spacing: 0;
+      align-items: center;
+    }
+    #legend span { cursor: pointer; transition: opacity .1s; }
+    #legend span:hover { opacity: 0.7; }
+
+    /* ── Step pips ────────────────────────────────────── */
+    .step-bar {
+      display: grid;
+      grid-template-columns: repeat(16, 38px);
+      gap: 3px;
+      padding: 0 5px;
+      margin-bottom: 6px;
+    }
+    .pip {
+      height: 2px;
+      border-radius: 1px;
+      background: #1a1a1a;
+      transition: background .08s, box-shadow .08s;
+    }
+    .pip.beat { background: #222; }
+    .pip.lit  { background: var(--accent); box-shadow: 0 0 6px var(--accent), 0 0 12px var(--accent); }
+
+    /* ── Grid ─────────────────────────────────────────── */
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(16, 38px);
+      grid-template-rows:    repeat(16, 38px);
+      gap: 3px;
+      padding: 4px;
+      background: #000;
+      border: 1px solid #111;
+      border-radius: 4px;
+    }
+    .cell {
+      border-radius: 2px;
+      background: #080808;
+      border: 1px solid #141414;
+      cursor: pointer;
+      position: relative;
+      overflow: hidden;
+      transition: background .06s, border-color .06s;
+    }
+    .cell::after {
+      content: '';
+      position: absolute;
+      inset: 6px;
+      border-radius: 1px;
+      background: transparent;
+      transition: background .06s, box-shadow .06s;
+    }
+    .cell:hover        { background: #0e0e0e; border-color: #282828; }
+    .cell.ph           { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.14); }
+    .cell.on           { background: rgba(255,255,255,0.06); border-color: var(--accent); }
+    .cell.on::after    { background: var(--accent); box-shadow: 0 0 8px var(--accent), 0 0 18px var(--accent); opacity: .75; }
+    .cell.on.ph        { background: rgba(255,255,255,0.10); border-color: var(--accent); }
+    .cell.on.ph::after { background: var(--accent); box-shadow: 0 0 14px var(--accent), 0 0 30px var(--accent); opacity: 1; }
+    .cell.beat-col:not(.on) { border-color: #181818; }
+    .cell.on.sel { outline: 1px solid rgba(255,255,255,0.55); outline-offset: 2px; }
+    @keyframes flash {
+      0%   { box-shadow: 0 0 24px var(--accent), 0 0 48px var(--accent); opacity: 1; }
+      100% { box-shadow: 0 0 8px var(--accent); opacity: .75; }
+    }
+    .cell.flash::after { animation: flash .28s ease-out forwards; }
+
+    /* ── Main layout ──────────────────────────────────── */
+    .main-layout {
+      display: flex;
+      flex-direction: row;
+      gap: 20px;
+      align-items: stretch;
+    }
+    .grid-col {
+      display: flex;
+      flex-direction: column;
+      flex-shrink: 0;
+    }
+
+    /* ── Controls panel ───────────────────────────────── */
+    .ctrl-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      letter-spacing: 0;
+      width: 220px;
+      flex-shrink: 0;
+    }
+    .panel-rule {
+      height: 1px;
+      background: #111;
+      margin: 4px 0;
+    }
+
+    /* topo viz canvas — fills remaining vertical space */
+    #viz-cv {
+      flex: 1;
+      width: 100%;
+      min-height: 100px;
+      display: block;
+      cursor: pointer;
+    }
+
+    /* ── Responsive: stack on narrow viewports ────────── */
+    @media (max-width: 940px) {
+      .main-layout { flex-direction: column; }
+      .ctrl-panel  { width: 100%; }
+      #viz-cv      { flex: none; height: 140px; }
+    }
+
+    /* control rows */
+    .ctrl-row {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      min-height: 22px;
+    }
+    .ctrl-row.slider { align-items: center; }
+    .ctrl-gap { height: 10px; }
+    .ctrl-gap.lg { height: 18px; }
+    .ctrl-key {
+      width: 56px;
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.45);
+      flex-shrink: 0;
+    }
+    .ctrl-val {
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.45);
+      min-width: 46px;
+    }
+
+    /* play button */
+    .btn-play {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.45);
+      font-family: inherit;
+      letter-spacing: 3px;
+      cursor: pointer;
+      padding: 0;
+      transition: color .12s, text-shadow .12s;
+    }
+    .btn-play:hover { color: #fff; }
+    .btn-play.playing {
+      color: var(--accent);
+      text-shadow: 0 0 8px var(--accent), 0 0 20px var(--accent);
+    }
+
+    /* sliders */
+    .s-brk { letter-spacing: 0; color: rgba(255,255,255,0.45); flex-shrink: 0; }
+    input[type=range] {
+      -webkit-appearance: none; appearance: none;
+      flex: 1; min-width: 0;
+      height: 1px; background: rgba(255,255,255,0.22);
+      border-radius: 1px; outline: none; cursor: pointer;
+    }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; appearance: none;
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--accent); cursor: pointer;
+      box-shadow: 0 0 5px var(--accent);
+    }
+
+    /* toggle buttons */
+    .tui-group { display: flex; align-items: center; flex-wrap: wrap; flex: 1; min-width: 0; row-gap: 6px; }
+    .tui-btn {
+      background: none; border: none;
+      color: rgba(255,255,255,0.45);
+      font-family: inherit; letter-spacing: 2px;
+      padding: 0 8px 0 0; cursor: pointer; transition: color .1s; white-space: nowrap;
+    }
+    .tui-btn:first-child { padding-left: 0; }
+    .tui-btn:hover { color: rgba(255,255,255,0.75); }
+    .tui-btn.sel { color: var(--accent); text-shadow: 0 0 6px var(--accent); }
+    .tui-btn.sel::before { content: '['; color: rgba(255,255,255,0.45); }
+    .tui-btn.sel::after  { content: ']'; color: rgba(255,255,255,0.45); }
+
+    /* action buttons */
+    .tui-action {
+      background: none; border: 1px solid rgba(255,255,255,0.45);
+      color: rgba(255,255,255,0.45);
+      font-family: inherit; letter-spacing: 2px;
+      padding: 2px 10px; cursor: pointer; transition: all .1s;
+    }
+    .tui-action:hover { border-color: rgba(255,255,255,0.75); color: rgba(255,255,255,0.85); }
+
+    /* footer */
+    .footer {
+      display: flex; justify-content: space-between; align-items: baseline;
+      margin-top: 6px; letter-spacing: 0;
+    }
+    #zko {
+      letter-spacing: 2px;
+      color: rgba(255,255,255,0.45); text-decoration: none; cursor: pointer; transition: color .1s;
+    }
+    #zko:hover { color: rgba(255,255,255,0.75); }
+    #hbtn {
+      all: unset;
+      font-family: 'Share Tech Mono', monospace;
+      letter-spacing: 3px;
+      color: rgba(255,255,255,0.45);
+      cursor: pointer;
+      transition: color .1s, text-shadow .1s;
+    }
+    #hbtn:hover { color: var(--accent); text-shadow: 0 0 8px var(--accent), 0 0 20px var(--accent); }
+
+    /* ── Page bar ─────────────────────────────────────── */
+    #pageBar {
+      display: inline-flex;
+      gap: 14px;
+      align-items: center;
+      letter-spacing: 2px;
+      margin-right: 14px;
+    }
+    .page-btn {
+      background: none; border: none;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px; letter-spacing: 2px;
+      color: rgba(255,255,255,0.25);
+      cursor: pointer; padding: 0;
+      transition: color .1s, text-shadow .1s;
+    }
+    .page-btn:hover { color: rgba(255,255,255,0.6); }
+    .page-btn.active {
+      color: var(--accent);
+      text-shadow: 0 0 8px var(--accent), 0 0 18px var(--accent);
+    }
+    .page-sep {
+      color: rgba(255,255,255,0.12);
+      letter-spacing: 0;
+      margin: 0 2px;
+    }
+    .copy-btn {
+      background: none; border: none;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px; letter-spacing: 0;
+      color: rgba(255,255,255,0.25);
+      cursor: pointer; padding: 0;
+      transition: color .1s, text-shadow .1s;
+    }
+    .copy-btn:hover { color: rgba(255,255,255,0.6); }
+    .copy-btn.has-copy {
+      color: var(--accent);
+      text-shadow: 0 0 8px var(--accent), 0 0 18px var(--accent);
+    }
+    .copy-btn:disabled {
+      color: rgba(255,255,255,0.12);
+      cursor: default;
+      pointer-events: none;
+    }
+
+    /* scale dropdown */
+    .scale-wrap {
+      position: relative; flex: 1; min-width: 0;
+      display: flex; align-items: center;
+    }
+    .scale-wrap::after {
+      content: '▾'; position: absolute; right: 0; top: 50%;
+      transform: translateY(-50%);
+      color: rgba(255,255,255,0.25); font-size: 10px;
+      pointer-events: none; letter-spacing: 0;
+    }
+    #scaleSelect {
+      -webkit-appearance: none; appearance: none;
+      width: 100%; padding-right: 12px;
+      background: none; border: none;
+      border-bottom: 1px solid rgba(255,255,255,0.15);
+      color: rgba(255,255,255,0.75);
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px; letter-spacing: 2px;
+      cursor: pointer; outline: none;
+    }
+    #scaleSelect:focus { color: var(--accent); border-bottom-color: var(--accent); }
+    #scaleSelect option { background: #000; color: #fff; letter-spacing: 1px; }
+  </style>
+</head>
+<body>
+
+<div id="scanlines"></div>
+<div id="vignette"></div>
+<canvas id="grain"></canvas>
+
+<div class="instrument">
+
+  <div class="hdr">
+    <div class="hdr-left"><div id="pageBar"></div><span id="selLabel"></span></div>
+    <div id="legend"></div>
+  </div>
+
+  <div class="main-layout">
+
+    <div class="grid-col">
+      <div class="step-bar" id="stepBar"></div>
+      <div class="grid" id="grid"></div>
+    </div>
+
+    <div class="ctrl-panel">
+
+      <div class="ctrl-row">
+        <span class="ctrl-key">play</span>
+        <button class="btn-play" id="playBtn" title="space">[ ▶ ]</button>
+      </div>
+      <div class="ctrl-row slider">
+        <span class="ctrl-key">bpm</span>
+        <span class="s-brk">◄</span>
+        <input type="range" id="bpmSlider" min="40" max="240" value="120" step="1">
+        <span class="s-brk">►</span>
+        <span class="ctrl-val" id="bpmVal">120</span>
+      </div>
+      <div class="ctrl-row" style="margin-top: 10px;">
+        <span class="ctrl-key"></span>
+        <button class="tui-action" id="randBtn">rand</button>
+        <button class="tui-action" id="clearBtn">clear</button>
+      </div>
+
+      <div class="panel-rule"></div>
+
+      <div class="ctrl-row slider">
+        <span class="ctrl-key">vol</span>
+        <span class="s-brk">◄</span>
+        <input type="range" id="volSlider" min="0" max="100" value="70" step="1">
+        <span class="s-brk">►</span>
+        <span class="ctrl-val" id="volVal">70%</span>
+      </div>
+      <div class="ctrl-row slider">
+        <span class="ctrl-key">decay</span>
+        <span class="s-brk">◄</span>
+        <input type="range" id="decaySlider" min="5" max="100" value="40" step="1">
+        <span class="s-brk">►</span>
+        <span class="ctrl-val" id="decayVal">0.40s</span>
+      </div>
+
+      <div class="ctrl-gap"></div>
+
+      <div class="ctrl-row slider" style="margin-bottom: 10px;">
+        <span class="ctrl-key">scale</span>
+        <div class="scale-wrap">
+          <select id="scaleSelect">
+            <option value="chromatic">chromatic</option>
+            <option value="ionian">ionian</option>
+            <option value="dorian">dorian</option>
+            <option value="phrygian">phrygian</option>
+            <option value="lydian">lydian</option>
+            <option value="mixolydian">mixolydian</option>
+            <option value="aeolian">aeolian</option>
+            <option value="locrian">locrian</option>
+            <option value="harmonic_minor">harmonic minor</option>
+            <option value="melodic_minor">melodic minor</option>
+            <option value="major_blues">major blues</option>
+            <option value="minor_blues">minor blues</option>
+            <option value="diminished">diminished</option>
+            <option value="comb_diminished">comb. dim.</option>
+            <option value="major_pentatonic" selected>major pentatonic</option>
+            <option value="minor_pentatonic">minor pentatonic</option>
+            <option value="raga_bhairav">raga bhairav</option>
+            <option value="raga_gamanasrama">raga gamanasrama</option>
+            <option value="raga_todi">raga todi</option>
+            <option value="arabian">arabian</option>
+            <option value="spanish">spanish</option>
+            <option value="gypsy">gypsy</option>
+            <option value="egyptian">egyptian</option>
+            <option value="hawaiian">hawaiian</option>
+            <option value="balinese_pelog">balinese pelog</option>
+            <option value="japanese_miyakobushi">japanese miyakobushi</option>
+            <option value="ryuku">ryuku</option>
+            <option value="chinese">chinese</option>
+            <option value="bass_line">bass line</option>
+            <option value="whole_tone">whole tone</option>
+            <option value="minor_3rd">minor 3rd</option>
+            <option value="major_3rd">major 3rd</option>
+            <option value="fourth">4th interval</option>
+            <option value="fifth">5th interval</option>
+            <option value="octave">octave</option>
+          </select>
+        </div>
+      </div>
+      <div class="ctrl-row">
+        <span class="ctrl-key">wave</span>
+        <div class="tui-group" id="waveGroup">
+          <button class="tui-btn sel" data-wave="sine"    >sine</button>
+          <button class="tui-btn"     data-wave="triangle">tri</button>
+          <button class="tui-btn"     data-wave="square"  >sqr</button>
+          <button class="tui-btn"     data-wave="sawtooth">saw</button>
+        </div>
+      </div>
+
+      <div class="panel-rule" style="margin-top: 8px;"></div>
+
+      <canvas id="viz-cv"></canvas>
+
+      <div class="panel-rule"></div>
+      <div class="footer">
+        <a id="zko" href="https://zko.io" target="_blank" rel="noopener">░▒▓░</a>
+        <button id="hbtn" tabindex="-1">H</button>
+      </div>
+
+    </div><!-- /ctrl-panel -->
+
+  </div><!-- /main-layout -->
+
+</div><!-- /instrument -->
+
+<script>
+'use strict';
+
+/* ── Accent color ───────────────────────────────────── */
+let lineColor = '#fff';
+function setAccent(col) {
+  lineColor = col;
+  document.documentElement.style.setProperty('--accent', col);
+}
+
+/* ── Film grain ─────────────────────────────────────── */
+(function () {
+  const cv = document.getElementById('grain');
+  const gx = cv.getContext('2d');
+  function frame() {
+    const gW = Math.ceil(window.innerWidth  / 2);
+    const gH = Math.ceil(window.innerHeight / 2);
+    cv.width = gW; cv.height = gH;
+    const id = gx.createImageData(gW, gH);
+    const d  = id.data;
+    for (let i = 0; i < d.length; i += 4) {
+      const v = Math.random() * 255 | 0;
+      d[i] = d[i+1] = d[i+2] = v;
+      d[i+3] = Math.random() * 26 | 0;
+    }
+    gx.putImageData(id, 0, 0);
+    requestAnimationFrame(frame);
+  }
+  frame();
+})();
+
+/* ── Color legend ───────────────────────────────────── */
+(function () {
+  const COLORS = [
+    '#FFFFFF','#AAAAAA','#55FFFF','#55FF55',
+    '#FFFF55','#FF55FF','#FF5555','#5555FF',
+  ];
+  const POOL = '.,:;+*#@0123456789';
+  const rc   = () => POOL[Math.random() * POOL.length | 0];
+  const legendEl = document.getElementById('legend');
+  const spans = COLORS.map(col => {
+    const s = document.createElement('span');
+    s.style.color = col;
+    s.textContent = rc();
+    s.addEventListener('click', () => setAccent(col));
+    legendEl.appendChild(s);
+    return s;
+  });
+  setInterval(() => spans.forEach(s => s.textContent = rc()), 140);
+})();
+
+/* ── ZKO cycling chars ──────────────────────────────── */
+(function () {
+  const CHARS = '.,:;+*#@0123456789';
+  const rc    = () => CHARS[Math.random() * CHARS.length | 0];
+  const el    = document.getElementById('zko');
+  setInterval(() => { if (el) el.textContent = rc()+rc()+rc()+rc(); }, 140);
+})();
+
+/* ── Audio (module-level so viz can read analyser) ──── */
+let audioCtx = null, master = null, analyser = null;
+
+function ensureCtx() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = audioCtx.createAnalyser();
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.75;
+    master = audioCtx.createGain();
+    master.gain.value = 0.8;
+    master.connect(analyser);
+    analyser.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
+/* ── Topo visualization ─────────────────────────────── */
+(function () {
+  const cv   = document.getElementById('viz-cv');
+  const vx   = cv.getContext('2d');
+
+  const GRID   = 50;
+  const L_STEP = 0.10;
+  const L_AMP  = 0.78;
+
+  // Marching squares lookup: bit 3=TL,2=TR,1=BR,0=BL; edges: 0=top,1=right,2=bottom,3=left
+  const MS = [
+    [],               // 0
+    [[2,3]],          // 1
+    [[1,2]],          // 2
+    [[1,3]],          // 3
+    [[0,1]],          // 4
+    [[0,1],[2,3]],    // 5 saddle
+    [[0,2]],          // 6
+    [[0,3]],          // 7
+    [[0,3]],          // 8
+    [[0,2]],          // 9
+    [[0,3],[1,2]],    // 10 saddle
+    [[0,1]],          // 11
+    [[1,3]],          // 12
+    [[1,2]],          // 13
+    [[2,3]],          // 14
+    [],               // 15
+  ];
+
+  const levels = [];
+  for (let l = -L_AMP + L_STEP * 0.5; l < L_AMP; l += L_STEP) levels.push(l);
+
+  const field = new Float32Array((GRID + 1) * (GRID + 1));
+  let timePh   = Math.random() * 100;
+  let extraAmp = 0;
+  let ampLevel = 0;
+  let rippleR  = 99, rippleAmp = 0, lastPulse = 0;
+  let analyserBuf = null;
+
+  function getRMS() {
+    if (!analyser) return 0;
+    if (!analyserBuf) analyserBuf = new Uint8Array(analyser.frequencyBinCount);
+    analyser.getByteTimeDomainData(analyserBuf);
+    let sq = 0;
+    for (let i = 0; i < analyserBuf.length; i++) {
+      const d = analyserBuf[i] / 255 - 0.5; sq += d * d;
+    }
+    return Math.sqrt(sq / analyserBuf.length);
+  }
+
+  function edgePt(i, j, e, vTL, vTR, vBL, vBR, lev, W, H) {
+    let gx, gy, t;
+    if      (e === 0) { t=(lev-vTL)/(vTR-vTL); gx=i+t; gy=j;     }
+    else if (e === 1) { t=(lev-vTR)/(vBR-vTR); gx=i+1; gy=j+t;   }
+    else if (e === 2) { t=(lev-vBL)/(vBR-vBL); gx=i+t; gy=j+1;   }
+    else              { t=(lev-vTL)/(vBL-vTL); gx=i;   gy=j+t;   }
+    return [gx / GRID * W, gy / GRID * H];
+  }
+
+  function triggerRipple() {
+    const now = performance.now();
+    if (now - lastPulse < 300) return;
+    lastPulse = now; rippleR = 0; rippleAmp = 0.028;
+  }
+  cv.addEventListener('click', triggerRipple);
+
+  let lastT = 0;
+  function draw(now) {
+    const dt = Math.min((now - lastT) / 1000, 0.05);
+    lastT = now;
+
+    const W = cv.offsetWidth || 160;
+    const H = cv.offsetHeight || 120;
+    cv.width = W; cv.height = H;
+
+    // Sound reactivity
+    const rms = getRMS();
+    ampLevel += (rms * 5 - ampLevel) * 0.12;
+    extraAmp += (ampLevel * 0.45 - extraAmp) * 0.08;
+    if (rms > 0.04) triggerRipple();
+
+    timePh   += dt * 0.55;
+    rippleR  += dt * 0.75;
+    rippleAmp *= Math.pow(0.975, dt * 60);
+
+    const totalAmp = 1.0 + extraAmp;
+    const AR = W / H;
+
+    for (let j = 0; j <= GRID; j++) {
+      for (let i = 0; i <= GRID; i++) {
+        const ux = i / GRID, uy = j / GRID;
+        const tx = ux * 2.6 * AR, ty = uy * 2.6;
+        let h = (
+          Math.sin(tx*1.9 + timePh*0.18 + 0.4) * Math.cos(ty*1.6 - timePh*0.14 + 1.0) * 0.38 +
+          Math.sin(tx*3.1 - timePh*0.26 + 1.7) * Math.cos(ty*2.8 + timePh*0.21 - 0.5) * 0.26 +
+          Math.sin(tx*1.1 + timePh*0.13 - 1.1) * Math.cos(ty*3.5 - timePh*0.22 + 0.6) * 0.20 +
+          Math.sin(tx*4.4 - timePh*0.32 + 0.8) * Math.cos(ty*1.4 + timePh*0.28 - 1.2) * 0.11 +
+          Math.sin(tx*2.3 + timePh*0.22 - 0.3) * Math.cos(ty*4.2 - timePh*0.17 + 2.0) * 0.07
+        ) * totalAmp;
+
+        if (rippleAmp > 0.001) {
+          const ru = ux - 0.5, rv = uy - 0.5;
+          const dr = Math.sqrt(ru*ru + rv*rv) - rippleR;
+          h += rippleAmp * Math.exp(-dr*dr*5) * Math.sin(dr*9);
+        }
+        field[j*(GRID+1)+i] = h;
+      }
+    }
+
+    const passes = [
+      { blur: 8,  alpha: 0.20, lw: 2.0 },
+      { blur: 2,  alpha: 0.52, lw: 1.0 },
+      { blur: 0,  alpha: 0.90, lw: 0.5 },
+    ];
+
+    for (const { blur, alpha, lw } of passes) {
+      vx.strokeStyle = lineColor;
+      vx.shadowColor = lineColor;
+      vx.shadowBlur  = blur;
+      vx.lineWidth   = lw;
+      vx.globalAlpha = alpha;
+      vx.beginPath();
+      for (const lev of levels) {
+        for (let j = 0; j < GRID; j++) {
+          for (let i = 0; i < GRID; i++) {
+            const vTL = field[j*(GRID+1)+i],     vTR = field[j*(GRID+1)+i+1];
+            const vBL = field[(j+1)*(GRID+1)+i], vBR = field[(j+1)*(GRID+1)+i+1];
+            const ci  = (vTL>lev?8:0)|(vTR>lev?4:0)|(vBR>lev?2:0)|(vBL>lev?1:0);
+            for (const [e0,e1] of MS[ci]) {
+              const [x0,y0] = edgePt(i,j,e0,vTL,vTR,vBL,vBR,lev,W,H);
+              const [x1,y1] = edgePt(i,j,e1,vTL,vTR,vBL,vBR,lev,W,H);
+              vx.moveTo(x0,y0); vx.lineTo(x1,y1);
+            }
+          }
+        }
+      }
+      vx.stroke();
+    }
+    vx.globalAlpha = 1;
+    vx.shadowBlur  = 0;
+    requestAnimationFrame(draw);
+  }
+  requestAnimationFrame(ts => { lastT = ts; requestAnimationFrame(draw); });
+})();
+
+/* ── Sequencer state ────────────────────────────────── */
+const ROWS = 16, COLS = 16, N_PAGES = 8;
+
+// S.cells[r][c] = null (off) | { wave, vol, decay, scale } (on)
+// S.cells is always a live reference to S.pages[S.page]
+const S = {
+  pages:   Array.from({length: N_PAGES}, () =>
+             Array.from({length: ROWS}, () => new Array(COLS).fill(null))),
+  page:    0,
+  get cells() { return this.pages[this.page]; },
+  step:    -1,
+  playing: false,
+  bpm:     120,
+  // defaults applied to newly placed notes:
+  scale:   'major_pentatonic',
+  wave:    'sine',
+  volume:  0.70,
+  decay:   0.40,
+};
+
+/* ── Scales ─────────────────────────────────────────── */
+const SCALE_IVLS = {
+  chromatic:            [0,1,2,3,4,5,6,7,8,9,10,11],
+  ionian:               [0,2,4,5,7,9,11],
+  dorian:               [0,2,3,5,7,9,10],
+  phrygian:             [0,1,3,5,7,8,10],
+  lydian:               [0,2,4,6,7,9,11],
+  mixolydian:           [0,2,4,5,7,9,10],
+  aeolian:              [0,2,3,5,7,8,10],
+  locrian:              [0,1,3,5,6,8,10],
+  harmonic_minor:       [0,2,3,5,7,8,11],
+  melodic_minor:        [0,2,3,5,7,9,11],
+  major_blues:          [0,2,3,4,7,9],
+  minor_blues:          [0,3,5,6,7,10],
+  diminished:           [0,2,3,5,6,8,9,11],
+  comb_diminished:      [0,1,3,4,6,7,9,10],
+  major_pentatonic:     [0,2,4,7,9],
+  minor_pentatonic:     [0,3,5,7,10],
+  raga_bhairav:         [0,1,4,5,7,8,11],
+  raga_gamanasrama:     [0,1,4,6,7,9,11],
+  raga_todi:            [0,1,3,6,7,8,11],
+  arabian:              [0,2,4,5,6,8,10],
+  spanish:              [0,1,3,4,5,7,8,10],
+  gypsy:                [0,2,3,6,7,8,11],
+  egyptian:             [0,2,5,7,10],
+  hawaiian:             [0,2,3,7,9],
+  balinese_pelog:       [0,1,3,7,8],
+  japanese_miyakobushi: [0,1,5,7,8],
+  ryuku:                [0,4,5,7,11],
+  chinese:              [0,2,6,7,11],
+  bass_line:            [0,7,10],
+  whole_tone:           [0,2,4,6,8,10],
+  minor_3rd:            [0,3,6,9],
+  major_3rd:            [0,4,8],
+  fourth:               [0,5,10],
+  fifth:                [0,7],
+  octave:               [0],
+};
+const BASE_MIDI = 45;
+
+function buildFreqs(scaleName) {
+  const ivls = SCALE_IVLS[scaleName];
+  const out = []; let oct = 0, i = 0;
+  while (out.length < ROWS) {
+    out.push(midiToHz(BASE_MIDI + oct * 12 + ivls[i]));
+    if (++i >= ivls.length) { i = 0; oct++; }
+  }
+  return out.reverse();
+}
+function midiToHz(n) { return 440 * Math.pow(2, (n - 69) / 12); }
+
+const FREQ_CACHES = {};
+function freqFor(scaleName, row) {
+  if (!FREQ_CACHES[scaleName]) FREQ_CACHES[scaleName] = buildFreqs(scaleName);
+  return FREQ_CACHES[scaleName][row];
+}
+
+/* ── Selection ──────────────────────────────────────── */
+let selR = -1, selC = -1;
+
+function selectNote(r, c) {
+  if (selR >= 0) cellEls[selR]?.[selC]?.classList.remove('sel');
+  selR = r; selC = c;
+  if (r >= 0) {
+    cellEls[r][c]?.classList.add('sel');
+    const note = S.cells[r][c];
+    if (note) reflectNote(note);
+  }
+  updateSelLabel();
+}
+
+function clearSel() {
+  if (selR >= 0) cellEls[selR]?.[selC]?.classList.remove('sel');
+  selR = -1; selC = -1;
+  updateSelLabel();
+}
+
+function updateSelLabel() {
+  document.getElementById('selLabel').textContent =
+    selR < 0 ? '' : `r${selR + 1} · c${selC + 1}`;
+}
+
+function reflectNote(note) {
+  document.getElementById('volSlider').value  = note.vol * 100;
+  document.getElementById('volVal').textContent = `${Math.round(note.vol * 100)}%`;
+  document.getElementById('decaySlider').value = note.decay * 100;
+  document.getElementById('decayVal').textContent = `${note.decay.toFixed(2)}s`;
+  document.querySelectorAll('#waveGroup .tui-btn').forEach(b =>
+    b.classList.toggle('sel', b.dataset.wave === note.wave));
+  document.getElementById('scaleSelect').value = note.scale;
+}
+
+/* ── Audio ──────────────────────────────────────────── */
+function playTone(freq, note, when) {
+  const dur = note.decay;
+  const osc  = audioCtx.createOscillator();
+  const gain = audioCtx.createGain();
+  osc.type = note.wave;
+  osc.frequency.value = freq;
+  const pk = note.vol * 0.7;
+  gain.gain.setValueAtTime(0, when);
+  gain.gain.linearRampToValueAtTime(pk,          when + 0.006);
+  gain.gain.exponentialRampToValueAtTime(pk * 0.36, when + 0.06);
+  gain.gain.exponentialRampToValueAtTime(0.001,   when + dur);
+  osc.connect(gain);
+  gain.connect(master);
+  osc.start(when);
+  osc.stop(when + dur + 0.02);
+}
+
+/* ── Sequencer ──────────────────────────────────────── */
+let seqTimer = null, nextWhen = 0, nextIdx = 0;
+const LOOKAHEAD = 0.12, TICK_INTERVAL = 25;
+
+function stepDur() { return 60 / S.bpm / 4; }
+
+function tick() {
+  while (nextWhen < audioCtx.currentTime + LOOKAHEAD) {
+    const step = nextIdx, when = nextWhen;
+    for (let r = 0; r < ROWS; r++) {
+      const note = S.cells[r][step];
+      if (note) playTone(freqFor(note.scale, r), note, when);
+    }
+    const delay = Math.max(0, (when - audioCtx.currentTime) * 1000);
+    setTimeout(() => advancePlayhead(step), delay);
+    nextIdx  = (nextIdx + 1) % COLS;
+    nextWhen += stepDur();
+  }
+  seqTimer = setTimeout(tick, TICK_INTERVAL);
+}
+
+function advancePlayhead(step) {
+  S.step = step;
+  for (let r = 0; r < ROWS; r++) {
+    if (S.cells[r][step]) {
+      const el = cellEls[r][step];
+      el.classList.remove('flash'); void el.offsetWidth; el.classList.add('flash');
+    }
+  }
+  renderAll();
+}
+
+function startSeq() {
+  ensureCtx();
+  S.playing = true;
+  nextIdx = 0; nextWhen = audioCtx.currentTime + 0.06;
+  tick();
+  playBtn.textContent = '[ ■ ]';
+  playBtn.classList.add('playing');
+}
+
+function stopSeq() {
+  S.playing = false;
+  clearTimeout(seqTimer);
+  S.step = -1; renderAll();
+  playBtn.textContent = '[ ▶ ]';
+  playBtn.classList.remove('playing');
+}
+
+/* ── Grid DOM ───────────────────────────────────────── */
+const cellEls = Array.from({length: ROWS}, () => new Array(COLS));
+
+function buildGrid() {
+  const grid = document.getElementById('grid');
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const el = document.createElement('div');
+      el.className = 'cell' + (c % 4 === 0 ? ' beat-col' : '');
+      el.dataset.r = r; el.dataset.c = c;
+      grid.appendChild(el);
+      cellEls[r][c] = el;
+    }
+  }
+}
+
+/* ── Cell activation ────────────────────────────────── */
+function makeNote() {
+  return { wave: S.wave, vol: S.volume, decay: S.decay, scale: S.scale };
+}
+
+function activateCell(r, c) {
+  S.cells[r][c] = makeNote();
+  renderCell(r, c);
+  ensureCtx();
+  playTone(freqFor(S.scale, r), S.cells[r][c], audioCtx.currentTime);
+}
+
+function deactivateCell(r, c) {
+  S.cells[r][c] = null;
+  renderCell(r, c);
+  if (selR === r && selC === c) clearSel();
+}
+
+/* ── Drag-to-paint ──────────────────────────────────── */
+let dragging = false, paintVal = null;
+
+document.addEventListener('mouseup', () => { dragging = false; paintVal = null; });
+
+document.getElementById('grid').addEventListener('mousedown', e => {
+  const el = e.target.closest('.cell'); if (!el) return;
+  e.preventDefault(); dragging = true;
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if (S.cells[r][c]) {
+    if (selR === r && selC === c) { deactivateCell(r, c); paintVal = 0; }
+    else                          { selectNote(r, c);     paintVal = null; }
+  } else {
+    activateCell(r, c); paintVal = 1;
+  }
+});
+document.getElementById('grid').addEventListener('mouseover', e => {
+  if (!dragging || paintVal === null) return;
+  const el = e.target.closest('.cell'); if (!el) return;
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if (paintVal === 1 && !S.cells[r][c]) activateCell(r, c);
+  if (paintVal === 0 &&  S.cells[r][c]) deactivateCell(r, c);
+});
+document.getElementById('grid').addEventListener('touchstart', e => {
+  e.preventDefault();
+  const t = e.touches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY)?.closest('.cell'); if (!el) return;
+  dragging = true;
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if (S.cells[r][c]) {
+    if (selR === r && selC === c) { deactivateCell(r, c); paintVal = 0; }
+    else                          { selectNote(r, c);     paintVal = null; }
+  } else {
+    activateCell(r, c); paintVal = 1;
+  }
+}, { passive: false });
+document.getElementById('grid').addEventListener('touchmove', e => {
+  e.preventDefault();
+  if (!dragging || paintVal === null) return;
+  const t = e.touches[0];
+  const el = document.elementFromPoint(t.clientX, t.clientY)?.closest('.cell'); if (!el) return;
+  const r = +el.dataset.r, c = +el.dataset.c;
+  if (paintVal === 1 && !S.cells[r][c]) activateCell(r, c);
+  if (paintVal === 0 &&  S.cells[r][c]) deactivateCell(r, c);
+}, { passive: false });
+document.getElementById('grid').addEventListener('touchend', () => { dragging = false; paintVal = null; });
+
+/* ── Render ─────────────────────────────────────────── */
+const pips = [];
+function buildStepBar() {
+  const bar = document.getElementById('stepBar');
+  for (let i = 0; i < COLS; i++) {
+    const pip = document.createElement('div');
+    pip.className = 'pip' + (i % 4 === 0 ? ' beat' : '');
+    bar.appendChild(pip); pips.push(pip);
+  }
+}
+function renderCell(r, c) {
+  const el = cellEls[r][c];
+  const on = !!S.cells[r][c];
+  el.classList.toggle('on',  on);
+  el.classList.toggle('sel', on && r === selR && c === selC);
+  el.classList.toggle('ph',  c === S.step);
+  if (!on) el.classList.remove('flash');
+}
+function renderAll() {
+  for (let r = 0; r < ROWS; r++)
+    for (let c = 0; c < COLS; c++) renderCell(r, c);
+  pips.forEach((pip, i) => pip.classList.toggle('lit', i === S.step));
+}
+
+/* ── Page bar ───────────────────────────────────────── */
+const pageBtns = [];
+let copiedPage = null;
+let pasteBtn = null;
+let copyBtn = null;
+
+function buildPageBar() {
+  const bar = document.getElementById('pageBar');
+
+  for (let i = 0; i < N_PAGES; i++) {
+    const btn = document.createElement('button');
+    btn.className = 'page-btn' + (i === 0 ? ' active' : '');
+    btn.textContent = String(i + 1);
+    btn.addEventListener('click', () => switchPage(i));
+    bar.appendChild(btn);
+    pageBtns.push(btn);
+  }
+
+  // separator
+  const sep = document.createElement('span');
+  sep.className = 'page-sep';
+  sep.textContent = '|';
+  bar.appendChild(sep);
+
+  // copy button ↑
+  copyBtn = document.createElement('button');
+  copyBtn.className = 'copy-btn';
+  copyBtn.textContent = '↑';
+  copyBtn.title = 'copy pattern';
+  copyBtn.addEventListener('click', () => {
+    copiedPage = S.pages[S.page].map(row => row.map(n => n ? {...n} : null));
+    pasteBtn.disabled = false;
+    pasteBtn.classList.add('has-copy');
+  });
+  bar.appendChild(copyBtn);
+
+  // paste button ↓
+  pasteBtn = document.createElement('button');
+  pasteBtn.className = 'copy-btn';
+  pasteBtn.textContent = '↓';
+  pasteBtn.title = 'paste pattern';
+  pasteBtn.disabled = true;
+  pasteBtn.addEventListener('click', () => {
+    if (!copiedPage) return;
+    S.pages[S.page] = copiedPage.map(row => row.map(n => n ? {...n} : null));
+    clearSel();
+    renderAll();
+  });
+  bar.appendChild(pasteBtn);
+}
+
+function switchPage(i) {
+  if (i === S.page) return;
+  S.page = i;
+  pageBtns.forEach((btn, idx) => btn.classList.toggle('active', idx === i));
+  clearSel();
+  renderAll();
+}
+
+/* ── Controls ───────────────────────────────────────── */
+const playBtn = document.getElementById('playBtn');
+playBtn.addEventListener('click', () => S.playing ? stopSeq() : startSeq());
+
+document.getElementById('bpmSlider').addEventListener('input', function () {
+  S.bpm = +this.value;
+  document.getElementById('bpmVal').textContent = this.value;
+});
+document.getElementById('volSlider').addEventListener('input', function () {
+  S.volume = this.value / 100;
+  document.getElementById('volVal').textContent = `${this.value}%`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].vol = S.volume;
+});
+document.getElementById('decaySlider').addEventListener('input', function () {
+  S.decay = this.value / 100;
+  document.getElementById('decayVal').textContent = `${S.decay.toFixed(2)}s`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].decay = S.decay;
+});
+document.getElementById('scaleSelect').addEventListener('change', function () {
+  S.scale = this.value;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].scale = S.scale;
+});
+document.getElementById('waveGroup').addEventListener('click', e => {
+  const btn = e.target.closest('[data-wave]'); if (!btn) return;
+  S.wave = btn.dataset.wave;
+  document.querySelectorAll('#waveGroup .tui-btn').forEach(b => b.classList.toggle('sel', b === btn));
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].wave = S.wave;
+});
+document.getElementById('clearBtn').addEventListener('click', () => {
+  for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
+  clearSel(); renderAll();
+});
+document.getElementById('randBtn').addEventListener('click', () => {
+  for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
+  clearSel();
+
+  // Pick an ambient-friendly scale (weighted toward pentatonic / modal)
+  const AMBIENT_SCALES = [
+    'major_pentatonic','major_pentatonic','major_pentatonic',
+    'minor_pentatonic','minor_pentatonic','minor_pentatonic',
+    'aeolian','aeolian','dorian','dorian',
+    'hawaiian','egyptian','balinese_pelog','japanese_miyakobushi',
+    'whole_tone','melodic_minor',
+  ];
+  const chosenScale = AMBIENT_SCALES[Math.floor(Math.random() * AMBIENT_SCALES.length)];
+  S.scale = chosenScale;
+  document.getElementById('scaleSelect').value = chosenScale;
+
+  // Wave pool weighted toward soft oscillators
+  const WAVE_POOL = ['sine','sine','sine','sine','triangle','triangle','triangle','square','sawtooth'];
+  const beats = new Set([0, 4, 8, 12]);
+
+  function rndNote(softBias) {
+    const soft = Math.random() < (softBias ?? 0.7);
+    return {
+      wave:  WAVE_POOL[Math.floor(Math.random() * WAVE_POOL.length)],
+      vol:   soft ? 0.28 + Math.random() * 0.22 : 0.50 + Math.random() * 0.20,
+      decay: soft ? 0.55 + Math.random() * 0.65 : 0.18 + Math.random() * 0.28,
+      scale: chosenScale,
+    };
+  }
+
+  // Narrow melodic band (2–3 rows, mid-range)
+  const bandCenter = 4 + Math.floor(Math.random() * 7);
+  const bandWidth  = 2 + Math.floor(Math.random() * 2);
+  const lo = Math.max(0, bandCenter - Math.floor(bandWidth / 2));
+  const hi = Math.min(ROWS - 1, lo + bandWidth);
+  const anchorRow = lo + Math.floor((hi - lo + 1) / 2);
+
+  // Anchor notes on strong beats for rhythmic grounding
+  if (Math.random() < 0.78)
+    S.cells[anchorRow][0] = { wave: 'sine', vol: 0.38 + Math.random() * 0.15, decay: 0.85 + Math.random() * 0.6,  scale: chosenScale };
+  if (Math.random() < 0.55)
+    S.cells[anchorRow][8] = { wave: 'sine', vol: 0.32 + Math.random() * 0.12, decay: 0.75 + Math.random() * 0.5,  scale: chosenScale };
+
+  // Sparse melodic scatter
+  for (let r = lo; r <= hi; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (S.cells[r][c]) continue;
+      if (Math.random() < (beats.has(c) ? 0.22 : 0.07)) S.cells[r][c] = rndNote(0.7);
+    }
+  }
+
+  // Optional low bass drone — a few sine notes at the bottom rows
+  if (Math.random() < 0.55) {
+    const bassRow = 13 + Math.floor(Math.random() * 3);
+    for (const c of beats) {
+      if (Math.random() < 0.45)
+        S.cells[bassRow][c] = { wave: 'sine', vol: 0.22 + Math.random() * 0.12, decay: 1.0 + Math.random() * 0.8, scale: chosenScale };
+    }
+  }
+  renderAll();
+});
+document.addEventListener('keydown', e => {
+  if (e.target !== document.body) return;
+  if (e.code === 'Space') {
+    e.preventDefault(); S.playing ? stopSeq() : startSeq();
+  }
+  if (e.key === 'h' || e.key === 'H') { helpVisible ? hideHelp() : showHelp(); }
+  const pageNum = parseInt(e.key);
+  if (pageNum >= 1 && pageNum <= 8) switchPage(pageNum - 1);
+  if (e.code === 'ArrowUp') {
+    e.preventDefault();
+    copiedPage = S.pages[S.page].map(row => row.map(n => n ? {...n} : null));
+    pasteBtn.disabled = false;
+    pasteBtn.classList.add('has-copy');
+  }
+  if (e.code === 'ArrowDown') {
+    e.preventDefault();
+    if (!copiedPage) return;
+    S.pages[S.page] = copiedPage.map(row => row.map(n => n ? {...n} : null));
+    clearSel(); renderAll();
+  }
+});
+
+/* ── Help overlay ───────────────────────────────────── */
+let helpVisible = false;
+
+const HELP_COLS = [
+  // [ type, key, desc ]   type: 'head' | 'row' | 'gap'
+  ['head', 'SEQUENCER', ''],
+  ['row',  'space',          'play / stop'],
+  ['row',  'H',              'toggle help'],
+  ['row',  'click empty',    'place note'],
+  ['row',  'drag',           'paint notes'],
+  ['row',  'click note',     'select note'],
+  ['row',  'click selected', 'erase note'],
+  ['row',  'rand',           'ambient pattern + scale'],
+  ['row',  'clear',          'erase all'],
+  ['gap'],
+  ['head', 'PAGES', ''],
+  ['row',  '1 – 8',   'switch page'],
+  ['row',  '↑',       'copy pattern'],
+  ['row',  '↓',       'paste pattern'],
+  ['gap'],
+  ['head', 'NOTE', 'select a note first'],
+  ['row',  'vol',   'note volume'],
+  ['row',  'decay', 'release time'],
+  ['row',  'scale', '35 scales (dropdown)'],
+  ['row',  'wave',  'oscillator type'],
+  ['gap'],
+  ['head', 'WAVEFORMS', ''],
+  ['row',  'sine', 'smooth / ambient'],
+  ['row',  'tri',  'warm / mellow'],
+  ['row',  'sqr',  'bright / harsh'],
+  ['row',  'saw',  'buzzy / rich'],
+  ['gap'],
+  ['head', 'COLORS', ''],
+  ['row',  'click swatch', 'set accent color'],
+];
+
+function showHelp() {
+  if (helpVisible) return;
+  helpVisible = true;
+
+  const ov = document.createElement('div');
+  ov.id = 'help-ov';
+  Object.assign(ov.style, {
+    position: 'fixed', inset: '0', zIndex: '9999',
+    background: 'rgba(0,0,0,0.92)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    overflow: 'hidden',
+  });
+
+  // scanlines
+  const sl = document.createElement('div');
+  Object.assign(sl.style, {
+    position: 'absolute', inset: '0', pointerEvents: 'none', zIndex: '1',
+    background: 'repeating-linear-gradient(to bottom,transparent 0px,transparent 1px,rgba(0,0,0,0.07) 1px,rgba(0,0,0,0.07) 2px)',
+  });
+  ov.appendChild(sl);
+
+  // vignette
+  const vg = document.createElement('div');
+  Object.assign(vg.style, {
+    position: 'absolute', inset: '0', pointerEvents: 'none', zIndex: '2',
+    background: 'radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.65) 100%)',
+  });
+  ov.appendChild(vg);
+
+  // close hint — anchored to the exact screen position of #hbtn
+  const hbtnRect = document.getElementById('hbtn').getBoundingClientRect();
+  const esc = document.createElement('div');
+  esc.textContent = 'H';
+  Object.assign(esc.style, {
+    position: 'fixed',
+    left: `${hbtnRect.left}px`, top: `${hbtnRect.top}px`,
+    zIndex: '10001',
+    fontFamily: "'Share Tech Mono', monospace", fontSize: '14px',
+    letterSpacing: '3px', cursor: 'pointer',
+    color: lineColor,
+    textShadow: `0 0 8px ${lineColor}, 0 0 20px ${lineColor}`,
+    userSelect: 'none',
+  });
+  esc.addEventListener('click', hideHelp);
+  ov.appendChild(esc);
+
+  // help grid
+  const grid = document.createElement('div');
+  Object.assign(grid.style, {
+    position: 'relative', zIndex: '10',
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    columnGap: '48px',
+    rowGap: '0px',
+    fontFamily: "'Share Tech Mono', monospace", fontSize: '14px',
+    lineHeight: '1.5', letterSpacing: '2px',
+    userSelect: 'none', color: lineColor,
+    maxWidth: '560px', width: '90vw',
+    textShadow: `0 0 8px ${lineColor}60`,
+  });
+
+  // split into left and right half-columns
+  const mid = Math.ceil(HELP_COLS.length / 2);
+  const halves = [HELP_COLS.slice(0, mid), HELP_COLS.slice(mid)];
+
+  halves.forEach(half => {
+    const col = document.createElement('div');
+    Object.assign(col.style, {
+      display: 'grid',
+      gridTemplateColumns: 'max-content 1fr',
+      columnGap: '20px',
+      rowGap: '0px',
+      alignContent: 'start',
+    });
+
+    half.forEach(item => {
+      if (item[0] === 'gap') {
+        const sp = document.createElement('div');
+        sp.style.cssText = 'grid-column:1/-1; height:22px;';
+        col.appendChild(sp);
+        return;
+      }
+      if (item[0] === 'head') {
+        const h = document.createElement('div');
+        h.textContent = item[1];
+        h.style.cssText = `grid-column:1/-1; color:${lineColor}; opacity:0.55; margin-bottom:6px; letter-spacing:3px;`;
+        col.appendChild(h);
+        if (item[2]) {
+          const sub = document.createElement('div');
+          sub.textContent = item[2];
+          sub.style.cssText = `grid-column:1/-1; opacity:0.35; font-size:12px; margin-bottom:2px; letter-spacing:2px;`;
+          col.appendChild(sub);
+        }
+        return;
+      }
+      // row
+      const k = document.createElement('div');
+      k.textContent = item[1];
+      k.style.cssText = 'white-space:nowrap; opacity:0.90;';
+      const d = document.createElement('div');
+      d.textContent = item[2];
+      d.style.cssText = 'opacity:0.45;';
+      col.appendChild(k);
+      col.appendChild(d);
+    });
+
+    grid.appendChild(col);
+  });
+
+  ov.appendChild(grid);
+
+  ov.addEventListener('click', e => { if (e.target === ov || e.target === grid) hideHelp(); });
+  document.body.appendChild(ov);
+}
+
+function hideHelp() {
+  if (!helpVisible) return;
+  helpVisible = false;
+  const ov = document.getElementById('help-ov');
+  if (ov) ov.remove();
+}
+
+document.getElementById('hbtn').addEventListener('click', () => helpVisible ? hideHelp() : showHelp());
+
+/* ── Init ───────────────────────────────────────────── */
+buildPageBar();
+buildStepBar();
+buildGrid();
+updateSelLabel();
+</script>
+</body>
+</html>
