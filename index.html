@@ -180,6 +180,13 @@
       .ctrl-panel  { width: 100%; }
       #viz-cv      { flex: none; height: 140px; }
     }
+    @media (max-width: 580px) {
+      .hdr      { flex-wrap: wrap; row-gap: 10px; }
+      .hdr-left { flex: 1; min-width: 0; }
+      .hdr-mid  { order: 3; width: 100%; }
+      .hdr-mid input[type=range] { flex: 1; width: auto; min-width: 0; }
+      #pageBar  { gap: 9px; margin-right: 8px; }
+    }
 
     /* control rows */
     .ctrl-row {
@@ -209,15 +216,16 @@
       border: none;
       color: rgba(255,255,255,0.45);
       font-family: inherit;
-      letter-spacing: 3px;
+      letter-spacing: 2px;
       cursor: pointer;
       padding: 0;
-      transition: color .12s, text-shadow .12s;
+      white-space: nowrap;
+      transition: color .1s, text-shadow .1s;
     }
-    .btn-play:hover { color: #fff; }
+    .btn-play:hover { color: rgba(255,255,255,0.75); }
     .btn-play.playing {
       color: var(--accent);
-      text-shadow: 0 0 8px var(--accent), 0 0 20px var(--accent);
+      text-shadow: 0 0 6px var(--accent), 0 0 18px var(--accent);
     }
 
     /* sliders */
@@ -278,6 +286,22 @@
     }
     #hbtn:hover { color: var(--accent); text-shadow: 0 0 8px var(--accent), 0 0 20px var(--accent); }
 
+    /* ── Header centre (play + bpm) ──────────────────── */
+    .hdr-mid {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      letter-spacing: 0;
+    }
+    .hdr-lbl {
+      color: rgba(255,255,255,0.45);
+      letter-spacing: 2px;
+    }
+    .hdr-mid input[type=range] {
+      width: 70px;
+      flex: none;
+    }
+
     /* ── Page bar ─────────────────────────────────────── */
     #pageBar {
       display: inline-flex;
@@ -321,6 +345,21 @@
       color: rgba(255,255,255,0.12);
       cursor: default;
       pointer-events: none;
+    }
+
+    /* ── Touch ────────────────────────────────────────── */
+    .btn-play, .tui-btn, .tui-action, .page-btn, .copy-btn, #hbtn, #zko {
+      touch-action: manipulation;
+    }
+    .grid { touch-action: none; }
+    @media (hover: none) {
+      /* expand tap targets on touch devices without breaking desktop layout */
+      .page-btn, .copy-btn, .btn-play, #hbtn {
+        min-height: 36px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
     }
 
     /* scale dropdown */
@@ -373,6 +412,14 @@
 
   <div class="hdr">
     <div class="hdr-left"><div id="pageBar"></div><span id="selLabel"></span></div>
+    <div class="hdr-mid">
+      <button class="btn-play" id="playBtn" tabindex="-1">play(space)</button>
+      <span class="hdr-lbl" style="margin-left:6px;">bpm</span>
+      <span class="s-brk">◄</span>
+      <input type="range" id="bpmSlider" min="40" max="240" value="120" step="1">
+      <span class="s-brk">►</span>
+      <span class="ctrl-val" id="bpmVal">120</span>
+    </div>
     <div id="legend"></div>
   </div>
 
@@ -386,19 +433,8 @@
     <div class="ctrl-panel">
 
       <div class="ctrl-row">
-        <span class="ctrl-key">play</span>
-        <button class="btn-play" id="playBtn" title="space">[ ▶ ]</button>
-      </div>
-      <div class="ctrl-row slider">
-        <span class="ctrl-key">bpm</span>
-        <span class="s-brk">◄</span>
-        <input type="range" id="bpmSlider" min="40" max="240" value="120" step="1">
-        <span class="s-brk">►</span>
-        <span class="ctrl-val" id="bpmVal">120</span>
-      </div>
-      <div class="ctrl-row" style="margin-top: 10px;">
-        <button class="tui-btn" id="randBtn">random(r)</button>
-        <button class="tui-btn" id="clearBtn">clear(c)</button>
+        <button class="tui-btn" id="randBtn" tabindex="-1">random(r)</button>
+        <button class="tui-btn" id="clearBtn" tabindex="-1">clear(c)</button>
       </div>
 
       <div class="panel-rule"></div>
@@ -465,16 +501,16 @@
       <div class="ctrl-row">
         <span class="ctrl-key">wave</span>
         <div class="tui-group" id="waveGroup">
-          <button class="tui-btn sel" data-wave="sine"    >sine</button>
-          <button class="tui-btn"     data-wave="triangle">tri</button>
-          <button class="tui-btn"     data-wave="square"  >sqr</button>
-          <button class="tui-btn"     data-wave="sawtooth">saw</button>
+          <button class="tui-btn sel" data-wave="sine"     tabindex="-1">sine</button>
+          <button class="tui-btn"     data-wave="triangle" tabindex="-1">tri</button>
+          <button class="tui-btn"     data-wave="square"   tabindex="-1">sqr</button>
+          <button class="tui-btn"     data-wave="sawtooth"  tabindex="-1">saw</button>
         </div>
       </div>
 
       <div class="panel-rule" style="margin-top: 8px;"></div>
 
-      <div id="shift-hint" style="letter-spacing:2px; color:rgba(255,255,255,0.38); font-size:11px; margin-bottom:4px;">[shift]</div>
+      <button id="shift-hint" class="tui-btn" tabindex="-1" style="letter-spacing:2px; color:rgba(255,255,255,0.38); font-size:11px; margin-bottom:4px;">fx(shift)</button>
       <canvas id="viz-cv"></canvas>
 
       <!-- Wave shaper panel — visible while Shift is held -->
@@ -497,10 +533,6 @@
           <span class="s-brk">►</span>
           <span class="ctrl-val" id="detVal">0¢</span>
         </div>
-
-        <div class="panel-rule" style="margin: 6px 0;"></div>
-
-        <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">global</div>
         <div class="ctrl-row slider">
           <span class="ctrl-key">cut</span>
           <span class="s-brk">◄</span>
@@ -514,13 +546,6 @@
           <input type="range" id="resSlider" min="0" max="100" value="0" step="1">
           <span class="s-brk">►</span>
           <span class="ctrl-val" id="resVal">1.0</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">trm</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="trmSlider" min="0" max="80" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="trmVal">off</span>
         </div>
         <div class="ctrl-row slider">
           <span class="ctrl-key">dst</span>
@@ -537,21 +562,53 @@
           <span class="ctrl-val" id="dlyVal">0%</span>
         </div>
         <div class="ctrl-row slider">
-          <span class="ctrl-key">fdb</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="fdbSlider" min="0" max="90" value="35" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="fdbVal">35%</span>
-        </div>
-        <div class="ctrl-row slider">
           <span class="ctrl-key">rev</span>
           <span class="s-brk">◄</span>
           <input type="range" id="revSlider" min="0" max="100" value="0" step="1">
           <span class="s-brk">►</span>
           <span class="ctrl-val" id="revVal">0%</span>
         </div>
+
+        <div class="panel-rule" style="margin: 6px 0;"></div>
+
+        <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">global</div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">rvl</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="rvlSlider" min="0" max="100" value="70" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="rvlVal">70%</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">hpf</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="hpfSlider" min="0" max="100" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="hpfVal">open</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">lpf</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="lpfSlider" min="0" max="100" value="100" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="lpfVal">open</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">trm</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="trmSlider" min="0" max="80" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="trmVal">off</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">fdb</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="fdbSlider" min="0" max="90" value="35" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="fdbVal">35%</span>
+        </div>
         <div class="ctrl-row" style="margin-top:6px;">
-          <button class="tui-btn" id="fxResetBtn">reset fx</button>
+          <button class="tui-btn" id="fxResetBtn" tabindex="-1">reset fx</button>
         </div>
       </div>
 
@@ -628,11 +685,10 @@ function setAccent(col) {
 
 /* ── Audio (module-level so viz can read analyser) ──── */
 let audioCtx = null, master = null, analyser = null;
-let filterNode = null, distNode = null;
 let tremoloGain = null, tremoloLFO = null, tremoloDepthNode = null;
 let delayNode = null, delayFeedbackNode = null;
-let delayDryGain = null, delayWetGain = null, postDelay = null;
-let reverbNode = null, reverbDryGain = null, reverbWetGain = null;
+let reverbNode = null, reverbOutGain = null;
+let globalHPF = null, globalLPF = null;
 
 function distCurve(amount) {
   const n = 256, curve = new Float32Array(n), k = amount * 200;
@@ -663,17 +719,6 @@ function ensureCtx() {
     master = audioCtx.createGain();
     master.gain.value = 0.8;
 
-    // Filter
-    filterNode = audioCtx.createBiquadFilter();
-    filterNode.type = 'lowpass';
-    filterNode.frequency.value = FX.cutoff;
-    filterNode.Q.value = FX.resonance;
-
-    // Distortion
-    distNode = audioCtx.createWaveShaper();
-    distNode.curve = distCurve(FX.distortion);
-    distNode.oversample = '2x';
-
     // Tremolo — LFO → depthGain → tremoloGain.gain
     tremoloGain = audioCtx.createGain();
     tremoloGain.gain.value = 1;
@@ -686,41 +731,40 @@ function ensureCtx() {
     tremoloDepthNode.connect(tremoloGain.gain);
     tremoloLFO.start();
 
-    // Delay with feedback loop
-    postDelay = audioCtx.createGain();
+    // Delay bus — per-note send gains connect here; feedback loop stays global
     delayNode = audioCtx.createDelay(2.0);
     delayNode.delayTime.value = 0.375;
     delayFeedbackNode = audioCtx.createGain();
     delayFeedbackNode.gain.value = FX.delayFeedback;
-    delayDryGain = audioCtx.createGain();
-    delayDryGain.gain.value = 1;
-    delayWetGain = audioCtx.createGain();
-    delayWetGain.gain.value = 0;
     delayNode.connect(delayFeedbackNode);
     delayFeedbackNode.connect(delayNode);
 
-    // Reverb (convolver + generated impulse)
+    // Reverb bus — per-note send gains connect here
     reverbNode = audioCtx.createConvolver();
     reverbNode.buffer = generateReverbIR(audioCtx);
-    reverbDryGain = audioCtx.createGain();
-    reverbDryGain.gain.value = 1;
-    reverbWetGain = audioCtx.createGain();
-    reverbWetGain.gain.value = 0;
+    reverbOutGain = audioCtx.createGain();
+    reverbOutGain.gain.value = FX.reverbLevel;
+    reverbNode.connect(reverbOutGain);
 
-    // Chain: master → filter → dist → tremolo → [delay] → [reverb] → analyser → destination
-    master.connect(filterNode);
-    filterNode.connect(distNode);
-    distNode.connect(tremoloGain);
-    tremoloGain.connect(delayDryGain);
-    tremoloGain.connect(delayNode);
-    delayNode.connect(delayWetGain);
-    delayDryGain.connect(postDelay);
-    delayWetGain.connect(postDelay);
-    postDelay.connect(reverbDryGain);
-    postDelay.connect(reverbNode);
-    reverbNode.connect(reverbWetGain);
-    reverbDryGain.connect(analyser);
-    reverbWetGain.connect(analyser);
+    // Global tone filters on dry master bus
+    globalHPF = audioCtx.createBiquadFilter();
+    globalHPF.type = 'highpass';
+    globalHPF.frequency.value = FX.hpfCutoff;
+    globalHPF.Q.value = 0.7;
+
+    globalLPF = audioCtx.createBiquadFilter();
+    globalLPF.type = 'lowpass';
+    globalLPF.frequency.value = FX.lpfCutoff;
+    globalLPF.Q.value = 0.7;
+
+    // Chain: master → tremolo → HPF → LPF → analyser → destination
+    // delay and reverb buses feed directly into analyser (bypass tone filters)
+    master.connect(tremoloGain);
+    tremoloGain.connect(globalHPF);
+    globalHPF.connect(globalLPF);
+    globalLPF.connect(analyser);
+    delayNode.connect(analyser);
+    reverbOutGain.connect(analyser);
     analyser.connect(audioCtx.destination);
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -897,11 +941,14 @@ const FX = {
   cutoff:        18000,
   resonance:     1.0,
   detune:        0,
-  tremolo:       0,
   distortion:    0,
-  delayMix:      0,
+  delaySend:     0,
+  reverbSend:    0,
+  reverbLevel:   0.7,
+  hpfCutoff:     20,
+  lpfCutoff:     20000,
+  tremolo:       0,
   delayFeedback: 0.35,
-  reverb:        0,
 };
 
 /* ── Scales ─────────────────────────────────────────── */
@@ -994,35 +1041,93 @@ function reflectNote(note) {
   document.querySelectorAll('#waveGroup .tui-btn').forEach(b =>
     b.classList.toggle('sel', b.dataset.wave === note.wave));
   document.getElementById('scaleSelect').value = note.scale;
-  const atk = note.attack ?? FX.attack;
-  const det = note.detune ?? FX.detune;
+
+  const atk   = note.attack      ?? FX.attack;
+  const det   = note.detune      ?? FX.detune;
+  const cut   = note.cutoff      ?? FX.cutoff;
+  const res   = note.resonance   ?? FX.resonance;
+  const dst   = note.distortion  ?? FX.distortion;
+  const dSnd  = note.delaySend   ?? FX.delaySend;
+  const rSnd  = note.reverbSend  ?? FX.reverbSend;
+
   document.getElementById('atkSlider').value = Math.round(atk * 1000);
   document.getElementById('atkVal').textContent = `${Math.round(atk * 1000)}ms`;
   document.getElementById('detSlider').value = det;
   document.getElementById('detVal').textContent = `${det}¢`;
+
+  // cut: reverse Hz→slider mapping  slider = log(hz/200) / log(100) * 100
+  const cutSliderVal = Math.round(Math.log(cut / 200) / Math.log(100) * 100);
+  document.getElementById('cutSlider').value = cutSliderVal;
+  const cutDisp = cut >= 18000 ? 'open' : cut >= 1000 ? `${(cut/1000).toFixed(1)}k` : `${Math.round(cut)}`;
+  document.getElementById('cutVal').textContent = cutDisp;
+
+  // res: reverse Q = 0.1 + (slider/100)*11.9  →  slider = (Q-0.1)/11.9*100
+  document.getElementById('resSlider').value = Math.round((res - 0.1) / 11.9 * 100);
+  document.getElementById('resVal').textContent = res.toFixed(1);
+
+  document.getElementById('dstSlider').value = Math.round(dst * 100);
+  document.getElementById('dstVal').textContent = `${Math.round(dst * 100)}%`;
+  document.getElementById('dlySlider').value = Math.round(dSnd * 100);
+  document.getElementById('dlyVal').textContent = `${Math.round(dSnd * 100)}%`;
+  document.getElementById('revSlider').value = Math.round(rSnd * 100);
+  document.getElementById('revVal').textContent = `${Math.round(rSnd * 100)}%`;
 }
 
 /* ── Audio ──────────────────────────────────────────── */
 function playTone(freq, note, when) {
-  const dur = note.decay;
-  const atk = Math.max(note.attack ?? FX.attack, 0.001);
-  const det = note.detune ?? FX.detune;
+  const dur   = note.decay;
+  const atk   = Math.max(note.attack     ?? FX.attack,      0.001);
+  const det   = note.detune              ?? FX.detune;
+  const cut   = note.cutoff              ?? FX.cutoff;
+  const res   = note.resonance           ?? FX.resonance;
+  const dst   = note.distortion          ?? FX.distortion;
+  const dSend = note.delaySend           ?? FX.delaySend;
+  const rSend = note.reverbSend          ?? FX.reverbSend;
+
   const osc  = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
+  const filt = audioCtx.createBiquadFilter();
+  const dist = audioCtx.createWaveShaper();
+
   osc.type = note.wave;
   osc.frequency.value = freq;
+
+  filt.type = 'lowpass';
+  filt.frequency.value = cut;
+  filt.Q.value = res;
+
+  dist.curve = distCurve(dst);
+  dist.oversample = '2x';
+
   const pk = note.vol * 0.7;
   gain.gain.setValueAtTime(0, when);
   gain.gain.linearRampToValueAtTime(pk, when + atk);
   gain.gain.exponentialRampToValueAtTime(pk * 0.36, when + atk + 0.054);
   gain.gain.exponentialRampToValueAtTime(0.001, when + dur);
+
   osc.connect(gain);
-  gain.connect(master);
+  gain.connect(filt);
+  filt.connect(dist);
+  dist.connect(master);
+
+  if (dSend > 0) {
+    const dg = audioCtx.createGain();
+    dg.gain.value = dSend;
+    dist.connect(dg);
+    dg.connect(delayNode);
+  }
+  if (rSend > 0) {
+    const rg = audioCtx.createGain();
+    rg.gain.value = rSend;
+    dist.connect(rg);
+    rg.connect(reverbNode);
+  }
+
   osc.start(when);
   osc.stop(when + dur + 0.02);
 
   if (det > 0) {
-    const osc2 = audioCtx.createOscillator();
+    const osc2  = audioCtx.createOscillator();
     const gain2 = audioCtx.createGain();
     osc2.type = note.wave;
     osc2.frequency.value = freq;
@@ -1032,7 +1137,7 @@ function playTone(freq, note, when) {
     gain2.gain.exponentialRampToValueAtTime(pk * 0.55 * 0.36, when + atk + 0.054);
     gain2.gain.exponentialRampToValueAtTime(0.001, when + dur);
     osc2.connect(gain2);
-    gain2.connect(master);
+    gain2.connect(filt);  // shares the per-note filter/dist chain
     osc2.start(when);
     osc2.stop(when + dur + 0.02);
   }
@@ -1075,7 +1180,7 @@ function startSeq() {
   S.playing = true;
   nextIdx = 0; nextWhen = audioCtx.currentTime + 0.06;
   tick();
-  playBtn.textContent = '[ ■ ]';
+  playBtn.textContent = 'stop(space)';
   playBtn.classList.add('playing');
 }
 
@@ -1083,7 +1188,7 @@ function stopSeq() {
   S.playing = false;
   clearTimeout(seqTimer);
   S.step = -1; renderAll();
-  playBtn.textContent = '[ ▶ ]';
+  playBtn.textContent = 'play(space)';
   playBtn.classList.remove('playing');
 }
 
@@ -1105,7 +1210,12 @@ function buildGrid() {
 
 /* ── Cell activation ────────────────────────────────── */
 function makeNote() {
-  return { wave: S.wave, vol: S.volume, decay: S.decay, scale: S.scale, attack: FX.attack, detune: FX.detune };
+  return {
+    wave: S.wave, vol: S.volume, decay: S.decay, scale: S.scale,
+    attack: FX.attack, detune: FX.detune,
+    cutoff: FX.cutoff, resonance: FX.resonance, distortion: FX.distortion,
+    delaySend: FX.delaySend, reverbSend: FX.reverbSend,
+  };
 }
 
 function activateCell(r, c) {
@@ -1113,6 +1223,7 @@ function activateCell(r, c) {
   renderCell(r, c);
   ensureCtx();
   playTone(freqFor(S.scale, r), S.cells[r][c], audioCtx.currentTime);
+  navigator.vibrate?.(8);
 }
 
 function deactivateCell(r, c) {
@@ -1144,6 +1255,8 @@ document.getElementById('grid').addEventListener('mouseover', e => {
   if (paintVal === 1 && !S.cells[r][c]) activateCell(r, c);
   if (paintVal === 0 &&  S.cells[r][c]) deactivateCell(r, c);
 });
+let longPressTimer = null, longPressR = -1, longPressC = -1;
+
 document.getElementById('grid').addEventListener('touchstart', e => {
   e.preventDefault();
   const t = e.touches[0];
@@ -1151,14 +1264,27 @@ document.getElementById('grid').addEventListener('touchstart', e => {
   dragging = true;
   const r = +el.dataset.r, c = +el.dataset.c;
   if (S.cells[r][c]) {
-    if (selR === r && selC === c) { deactivateCell(r, c); paintVal = 0; }
-    else                          { selectNote(r, c);     paintVal = null; }
+    // active cell — wait to distinguish quick tap (select) from long-press (erase)
+    longPressR = r; longPressC = c;
+    paintVal = null;
+    longPressTimer = setTimeout(() => {
+      longPressTimer = null;
+      deactivateCell(longPressR, longPressC);
+      paintVal = 0;
+      navigator.vibrate?.(40);
+      longPressR = -1; longPressC = -1;
+    }, 350);
   } else {
     activateCell(r, c); paintVal = 1;
   }
 }, { passive: false });
 document.getElementById('grid').addEventListener('touchmove', e => {
   e.preventDefault();
+  // finger moved — cancel long-press detection, switch to drag-paint
+  if (longPressTimer) {
+    clearTimeout(longPressTimer); longPressTimer = null;
+    longPressR = -1; longPressC = -1;
+  }
   if (!dragging || paintVal === null) return;
   const t = e.touches[0];
   const el = document.elementFromPoint(t.clientX, t.clientY)?.closest('.cell'); if (!el) return;
@@ -1166,7 +1292,18 @@ document.getElementById('grid').addEventListener('touchmove', e => {
   if (paintVal === 1 && !S.cells[r][c]) activateCell(r, c);
   if (paintVal === 0 &&  S.cells[r][c]) deactivateCell(r, c);
 }, { passive: false });
-document.getElementById('grid').addEventListener('touchend', () => { dragging = false; paintVal = null; });
+document.getElementById('grid').addEventListener('touchend', () => {
+  if (longPressTimer) {
+    // quick tap on active cell — select it (or deselect if already selected)
+    clearTimeout(longPressTimer); longPressTimer = null;
+    if (longPressR >= 0) {
+      if (selR === longPressR && selC === longPressC) clearSel();
+      else selectNote(longPressR, longPressC);
+      longPressR = -1; longPressC = -1;
+    }
+  }
+  dragging = false; paintVal = null;
+});
 
 /* ── Render ─────────────────────────────────────────── */
 const pips = [];
@@ -1205,6 +1342,7 @@ function buildPageBar() {
     const btn = document.createElement('button');
     btn.className = 'page-btn' + (i === 0 ? ' active' : '');
     btn.textContent = String(i + 1);
+    btn.tabIndex = -1;
     btn.addEventListener('click', () => switchPage(i));
     bar.appendChild(btn);
     pageBtns.push(btn);
@@ -1220,6 +1358,7 @@ function buildPageBar() {
   copyBtn = document.createElement('button');
   copyBtn.className = 'copy-btn';
   copyBtn.textContent = '↑';
+  copyBtn.tabIndex = -1;
   copyBtn.title = 'copy pattern';
   copyBtn.addEventListener('click', () => {
     copiedPage = S.pages[S.page].map(row => row.map(n => n ? {...n} : null));
@@ -1232,6 +1371,7 @@ function buildPageBar() {
   pasteBtn = document.createElement('button');
   pasteBtn.className = 'copy-btn';
   pasteBtn.textContent = '↓';
+  pasteBtn.tabIndex = -1;
   pasteBtn.title = 'paste pattern';
   pasteBtn.disabled = true;
   pasteBtn.addEventListener('click', () => {
@@ -1303,15 +1443,20 @@ document.getElementById('randBtn').addEventListener('click', () => {
   const WAVE_POOL = ['sine','sine','sine','sine','triangle','triangle','triangle','square','sawtooth'];
   const beats = new Set([0, 4, 8, 12]);
 
+  const fxSnap = () => ({
+    attack: FX.attack, detune: FX.detune,
+    cutoff: FX.cutoff, resonance: FX.resonance, distortion: FX.distortion,
+    delaySend: FX.delaySend, reverbSend: FX.reverbSend,
+  });
+
   function rndNote(softBias) {
     const soft = Math.random() < (softBias ?? 0.7);
     return {
-      wave:   WAVE_POOL[Math.floor(Math.random() * WAVE_POOL.length)],
-      vol:    soft ? 0.28 + Math.random() * 0.22 : 0.50 + Math.random() * 0.20,
-      decay:  soft ? 0.55 + Math.random() * 0.65 : 0.18 + Math.random() * 0.28,
-      scale:  chosenScale,
-      attack: FX.attack,
-      detune: FX.detune,
+      wave:  WAVE_POOL[Math.floor(Math.random() * WAVE_POOL.length)],
+      vol:   soft ? 0.28 + Math.random() * 0.22 : 0.50 + Math.random() * 0.20,
+      decay: soft ? 0.55 + Math.random() * 0.65 : 0.18 + Math.random() * 0.28,
+      scale: chosenScale,
+      ...fxSnap(),
     };
   }
 
@@ -1324,9 +1469,9 @@ document.getElementById('randBtn').addEventListener('click', () => {
 
   // Anchor notes on strong beats for rhythmic grounding
   if (Math.random() < 0.78)
-    S.cells[anchorRow][0] = { wave: 'sine', vol: 0.38 + Math.random() * 0.15, decay: 0.85 + Math.random() * 0.6,  scale: chosenScale, attack: FX.attack, detune: FX.detune };
+    S.cells[anchorRow][0] = { wave: 'sine', vol: 0.38 + Math.random() * 0.15, decay: 0.85 + Math.random() * 0.6,  scale: chosenScale, ...fxSnap() };
   if (Math.random() < 0.55)
-    S.cells[anchorRow][8] = { wave: 'sine', vol: 0.32 + Math.random() * 0.12, decay: 0.75 + Math.random() * 0.5,  scale: chosenScale, attack: FX.attack, detune: FX.detune };
+    S.cells[anchorRow][8] = { wave: 'sine', vol: 0.32 + Math.random() * 0.12, decay: 0.75 + Math.random() * 0.5,  scale: chosenScale, ...fxSnap() };
 
   // Sparse melodic scatter
   for (let r = lo; r <= hi; r++) {
@@ -1341,14 +1486,15 @@ document.getElementById('randBtn').addEventListener('click', () => {
     const bassRow = 13 + Math.floor(Math.random() * 3);
     for (const c of beats) {
       if (Math.random() < 0.45)
-        S.cells[bassRow][c] = { wave: 'sine', vol: 0.22 + Math.random() * 0.12, decay: 1.0 + Math.random() * 0.8, scale: chosenScale, attack: FX.attack, detune: FX.detune };
+        S.cells[bassRow][c] = { wave: 'sine', vol: 0.22 + Math.random() * 0.12, decay: 1.0 + Math.random() * 0.8, scale: chosenScale, ...fxSnap() };
     }
   }
   renderAll();
 });
 document.addEventListener('keydown', e => {
   if (e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
-  if (e.target !== document.body) return;
+  const tag = e.target.tagName;
+  if (tag === 'INPUT' || tag === 'SELECT') return;
   if (e.code === 'Space') {
     e.preventDefault(); S.playing ? stopSeq() : startSeq();
   }
@@ -1377,12 +1523,12 @@ const HELP_COLS = [
   ['head', 'SEQUENCER', ''],
   ['row',  'space',          'play / stop'],
   ['row',  'H',              'toggle help'],
-  ['row',  'shift (hold)',   'wave shaper panel'],
+  ['row',  'shift (hold)',   'per-note fx panel'],
   ['row',  'click empty',    'place note'],
   ['row',  'drag',           'paint notes'],
   ['row',  'click note',     'select note'],
   ['row',  'click selected', 'erase note'],
-  ['row',  'R / rand',        'ambient pattern + scale'],
+  ['row',  'R / rand',       'ambient pattern + scale'],
   ['row',  'C / clear',      'erase all'],
   ['gap'],
   ['head', 'PAGES', ''],
@@ -1391,10 +1537,24 @@ const HELP_COLS = [
   ['row',  '↓',       'paste pattern'],
   ['gap'],
   ['head', 'NOTE', 'select a note first'],
-  ['row',  'vol',   'note volume'],
+  ['row',  'vol',   'volume'],
   ['row',  'decay', 'release time'],
-  ['row',  'scale', '35 scales (dropdown)'],
+  ['row',  'scale', '35 scales'],
   ['row',  'wave',  'oscillator type'],
+  ['row',  'atk',   'attack time'],
+  ['row',  'det',   'detune (cents)'],
+  ['row',  'cut',   'filter cutoff'],
+  ['row',  'res',   'filter resonance'],
+  ['row',  'dst',   'distortion'],
+  ['row',  'dly',   'delay send'],
+  ['row',  'rev',   'reverb send'],
+  ['gap'],
+  ['head', 'GLOBAL FX', ''],
+  ['row',  'rvl',  'reverb output level'],
+  ['row',  'hpf',  'high-pass cutoff'],
+  ['row',  'lpf',  'low-pass cutoff'],
+  ['row',  'trm',  'tremolo rate'],
+  ['row',  'fdb',  'delay feedback'],
   ['gap'],
   ['head', 'WAVEFORMS', ''],
   ['row',  'sine', 'smooth / ambient'],
@@ -1569,23 +1729,41 @@ function drawScope() {
 
 /* ── Shift — wave panel toggle ──────────────────────── */
 let shiftActive = false;
+let shiftLocked  = false;  // true when opened via tap (stays open until tapped again)
+
+function openShiftPanel() {
+  if (shiftActive) return;
+  shiftActive = true;
+  document.getElementById('viz-cv').style.display = 'none';
+  document.getElementById('wave-panel').style.display = 'flex';
+  const hint = document.getElementById('shift-hint');
+  hint.textContent = 'fx ×';
+  hint.style.color = lineColor;
+  if (!scopeActive) { scopeActive = true; drawScope(); }
+}
+
+function closeShiftPanel() {
+  if (!shiftActive) return;
+  shiftActive = false;
+  shiftLocked  = false;
+  document.getElementById('viz-cv').style.display = '';
+  document.getElementById('wave-panel').style.display = 'none';
+  const hint = document.getElementById('shift-hint');
+  hint.textContent = 'fx(shift)';
+  hint.style.color = '';
+  scopeActive = false;
+}
+
+document.getElementById('shift-hint').addEventListener('click', () => {
+  if (shiftLocked) { closeShiftPanel(); }
+  else             { shiftLocked = true; openShiftPanel(); }
+});
+
 document.addEventListener('keydown', e => {
-  if (e.key === 'Shift' && !shiftActive) {
-    shiftActive = true;
-    document.getElementById('viz-cv').style.display = 'none';
-    document.getElementById('shift-hint').style.display = 'none';
-    document.getElementById('wave-panel').style.display = 'flex';
-    if (!scopeActive) { scopeActive = true; drawScope(); }
-  }
+  if (e.key === 'Shift') openShiftPanel();
 });
 document.addEventListener('keyup', e => {
-  if (e.key === 'Shift') {
-    shiftActive = false;
-    document.getElementById('viz-cv').style.display = '';
-    document.getElementById('shift-hint').style.display = '';
-    document.getElementById('wave-panel').style.display = 'none';
-    scopeActive = false;
-  }
+  if (e.key === 'Shift' && !shiftLocked) closeShiftPanel();
 });
 
 /* ── FX controls ────────────────────────────────────── */
@@ -1597,20 +1775,37 @@ document.getElementById('atkSlider').addEventListener('input', function () {
 document.getElementById('cutSlider').addEventListener('input', function () {
   const hz = Math.round(200 * Math.pow(100, this.value / 100));
   FX.cutoff = hz;
-  if (filterNode) filterNode.frequency.setTargetAtTime(hz, audioCtx.currentTime, 0.01);
   const disp = hz >= 18000 ? 'open' : hz >= 1000 ? `${(hz/1000).toFixed(1)}k` : `${hz}`;
   document.getElementById('cutVal').textContent = disp;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].cutoff = hz;
 });
 document.getElementById('resSlider').addEventListener('input', function () {
   const q = 0.1 + (this.value / 100) * 11.9;
   FX.resonance = q;
-  if (filterNode) filterNode.Q.setTargetAtTime(q, audioCtx.currentTime, 0.01);
   document.getElementById('resVal').textContent = q.toFixed(1);
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].resonance = q;
 });
 document.getElementById('detSlider').addEventListener('input', function () {
   FX.detune = +this.value;
   document.getElementById('detVal').textContent = `${this.value}¢`;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].detune = FX.detune;
+});
+document.getElementById('rvlSlider').addEventListener('input', function () {
+  FX.reverbLevel = this.value / 100;
+  if (reverbOutGain) reverbOutGain.gain.setTargetAtTime(FX.reverbLevel, audioCtx.currentTime, 0.01);
+  document.getElementById('rvlVal').textContent = `${this.value}%`;
+});
+document.getElementById('hpfSlider').addEventListener('input', function () {
+  const hz = Math.round(20 * Math.pow(100, this.value / 100));
+  FX.hpfCutoff = hz;
+  if (globalHPF) globalHPF.frequency.setTargetAtTime(hz, audioCtx.currentTime, 0.01);
+  document.getElementById('hpfVal').textContent = hz <= 20 ? 'open' : hz >= 1000 ? `${(hz/1000).toFixed(1)}k` : `${hz}`;
+});
+document.getElementById('lpfSlider').addEventListener('input', function () {
+  const hz = Math.round(200 * Math.pow(100, this.value / 100));
+  FX.lpfCutoff = hz;
+  if (globalLPF) globalLPF.frequency.setTargetAtTime(hz, audioCtx.currentTime, 0.01);
+  document.getElementById('lpfVal').textContent = hz >= 20000 ? 'open' : hz >= 1000 ? `${(hz/1000).toFixed(1)}k` : `${hz}`;
 });
 document.getElementById('trmSlider').addEventListener('input', function () {
   const rate = this.value / 10;
@@ -1621,14 +1816,13 @@ document.getElementById('trmSlider').addEventListener('input', function () {
 });
 document.getElementById('dstSlider').addEventListener('input', function () {
   FX.distortion = this.value / 100;
-  if (distNode) distNode.curve = distCurve(FX.distortion);
   document.getElementById('dstVal').textContent = `${this.value}%`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].distortion = FX.distortion;
 });
 document.getElementById('dlySlider').addEventListener('input', function () {
-  FX.delayMix = this.value / 100;
-  if (delayDryGain) delayDryGain.gain.setTargetAtTime(1 - FX.delayMix, audioCtx.currentTime, 0.01);
-  if (delayWetGain) delayWetGain.gain.setTargetAtTime(FX.delayMix, audioCtx.currentTime, 0.01);
+  FX.delaySend = this.value / 100;
   document.getElementById('dlyVal').textContent = `${this.value}%`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].delaySend = FX.delaySend;
 });
 document.getElementById('fdbSlider').addEventListener('input', function () {
   FX.delayFeedback = this.value / 100;
@@ -1636,38 +1830,45 @@ document.getElementById('fdbSlider').addEventListener('input', function () {
   document.getElementById('fdbVal').textContent = `${this.value}%`;
 });
 document.getElementById('revSlider').addEventListener('input', function () {
-  FX.reverb = this.value / 100;
-  if (reverbDryGain) reverbDryGain.gain.setTargetAtTime(1 - FX.reverb, audioCtx.currentTime, 0.01);
-  if (reverbWetGain) reverbWetGain.gain.setTargetAtTime(FX.reverb, audioCtx.currentTime, 0.01);
+  FX.reverbSend = this.value / 100;
   document.getElementById('revVal').textContent = `${this.value}%`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].reverbSend = FX.reverbSend;
 });
 
 document.getElementById('fxResetBtn').addEventListener('click', () => {
-  const defaults = { attack:0.006, cutoff:18000, resonance:1.0, detune:0, tremolo:0, distortion:0, delayMix:0, delayFeedback:0.35, reverb:0 };
+  const defaults = { attack:0.006, cutoff:18000, resonance:1.0, detune:0, distortion:0, delaySend:0, reverbSend:0, reverbLevel:0.7, hpfCutoff:20, lpfCutoff:20000, tremolo:0, delayFeedback:0.35 };
   Object.assign(FX, defaults);
 
   document.getElementById('atkSlider').value  = 6;    document.getElementById('atkVal').textContent  = '6ms';
+  document.getElementById('detSlider').value  = 0;    document.getElementById('detVal').textContent  = '0¢';
   document.getElementById('cutSlider').value  = 100;  document.getElementById('cutVal').textContent  = 'open';
   document.getElementById('resSlider').value  = 0;    document.getElementById('resVal').textContent  = '1.0';
-  document.getElementById('detSlider').value  = 0;    document.getElementById('detVal').textContent  = '0¢';
-  document.getElementById('trmSlider').value  = 0;    document.getElementById('trmVal').textContent  = 'off';
   document.getElementById('dstSlider').value  = 0;    document.getElementById('dstVal').textContent  = '0%';
   document.getElementById('dlySlider').value  = 0;    document.getElementById('dlyVal').textContent  = '0%';
-  document.getElementById('fdbSlider').value  = 35;   document.getElementById('fdbVal').textContent  = '35%';
   document.getElementById('revSlider').value  = 0;    document.getElementById('revVal').textContent  = '0%';
+  document.getElementById('rvlSlider').value  = 70;   document.getElementById('rvlVal').textContent  = '70%';
+  document.getElementById('hpfSlider').value  = 0;    document.getElementById('hpfVal').textContent  = 'open';
+  document.getElementById('lpfSlider').value  = 100;  document.getElementById('lpfVal').textContent  = 'open';
+  document.getElementById('trmSlider').value  = 0;    document.getElementById('trmVal').textContent  = 'off';
+  document.getElementById('fdbSlider').value  = 35;   document.getElementById('fdbVal').textContent  = '35%';
 
   if (audioCtx) {
     const t = audioCtx.currentTime;
-    filterNode.frequency.setTargetAtTime(18000, t, 0.01);
-    filterNode.Q.setTargetAtTime(1.0, t, 0.01);
-    distNode.curve = distCurve(0);
+    reverbOutGain.gain.setTargetAtTime(0.7, t, 0.01);
+    globalHPF.frequency.setTargetAtTime(20, t, 0.01);
+    globalLPF.frequency.setTargetAtTime(20000, t, 0.01);
     tremoloLFO.frequency.setTargetAtTime(0, t, 0.01);
     tremoloDepthNode.gain.setTargetAtTime(0, t, 0.01);
-    delayDryGain.gain.setTargetAtTime(1, t, 0.01);
-    delayWetGain.gain.setTargetAtTime(0, t, 0.01);
     delayFeedbackNode.gain.setTargetAtTime(0.35, t, 0.01);
-    reverbDryGain.gain.setTargetAtTime(1, t, 0.01);
-    reverbWetGain.gain.setTargetAtTime(0, t, 0.01);
+  }
+
+  // reset selected note's per-note fx fields
+  if (selR >= 0 && S.cells[selR][selC]) {
+    const n = S.cells[selR][selC];
+    n.attack = FX.attack;   n.detune     = FX.detune;
+    n.cutoff = FX.cutoff;   n.resonance  = FX.resonance;
+    n.distortion = FX.distortion;
+    n.delaySend  = FX.delaySend;  n.reverbSend = FX.reverbSend;
   }
 });
 
