@@ -346,6 +346,21 @@
     }
     #scaleSelect:focus { color: var(--accent); border-bottom-color: var(--accent); }
     #scaleSelect option { background: #000; color: #fff; letter-spacing: 1px; }
+
+    /* wave panel (shift mode) */
+    #wave-panel {
+      display: none;
+      flex-direction: column;
+      gap: 2px;
+      flex: 1;
+      min-height: 100px;
+    }
+    #scope-cv {
+      width: 100%;
+      height: 56px;
+      display: block;
+    }
+    #wave-panel .ctrl-val { min-width: 52px; }
   </style>
 </head>
 <body>
@@ -459,7 +474,86 @@
 
       <div class="panel-rule" style="margin-top: 8px;"></div>
 
+      <div id="shift-hint" style="letter-spacing:2px; color:rgba(255,255,255,0.38); font-size:11px; margin-bottom:4px;">[shift]</div>
       <canvas id="viz-cv"></canvas>
+
+      <!-- Wave shaper panel — visible while Shift is held -->
+      <div id="wave-panel">
+        <canvas id="scope-cv"></canvas>
+        <div class="panel-rule" style="margin-bottom:2px;"></div>
+
+        <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">per note</div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">atk</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="atkSlider" min="0" max="300" value="6" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="atkVal">6ms</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">det</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="detSlider" min="0" max="50" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="detVal">0¢</span>
+        </div>
+
+        <div class="panel-rule" style="margin: 6px 0;"></div>
+
+        <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">global</div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">cut</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="cutSlider" min="0" max="100" value="100" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="cutVal">open</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">res</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="resSlider" min="0" max="100" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="resVal">1.0</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">trm</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="trmSlider" min="0" max="80" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="trmVal">off</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">dst</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="dstSlider" min="0" max="100" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="dstVal">0%</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">dly</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="dlySlider" min="0" max="100" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="dlyVal">0%</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">fdb</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="fdbSlider" min="0" max="90" value="35" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="fdbVal">35%</span>
+        </div>
+        <div class="ctrl-row slider">
+          <span class="ctrl-key">rev</span>
+          <span class="s-brk">◄</span>
+          <input type="range" id="revSlider" min="0" max="100" value="0" step="1">
+          <span class="s-brk">►</span>
+          <span class="ctrl-val" id="revVal">0%</span>
+        </div>
+        <div class="ctrl-row" style="margin-top:6px;">
+          <button class="tui-btn" id="fxResetBtn">reset fx</button>
+        </div>
+      </div>
 
       <div class="panel-rule"></div>
       <div class="footer">
@@ -534,6 +628,31 @@ function setAccent(col) {
 
 /* ── Audio (module-level so viz can read analyser) ──── */
 let audioCtx = null, master = null, analyser = null;
+let filterNode = null, distNode = null;
+let tremoloGain = null, tremoloLFO = null, tremoloDepthNode = null;
+let delayNode = null, delayFeedbackNode = null;
+let delayDryGain = null, delayWetGain = null, postDelay = null;
+let reverbNode = null, reverbDryGain = null, reverbWetGain = null;
+
+function distCurve(amount) {
+  const n = 256, curve = new Float32Array(n), k = amount * 200;
+  for (let i = 0; i < n; i++) {
+    const x = (i * 2) / n - 1;
+    curve[i] = k === 0 ? x : (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+  }
+  return curve;
+}
+
+function generateReverbIR(ctx) {
+  const sr = ctx.sampleRate, len = sr * 3.0;
+  const buf = ctx.createBuffer(2, len, sr);
+  for (let c = 0; c < 2; c++) {
+    const d = buf.getChannelData(c);
+    for (let i = 0; i < len; i++)
+      d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / len, 2.5);
+  }
+  return buf;
+}
 
 function ensureCtx() {
   if (!audioCtx) {
@@ -543,7 +662,65 @@ function ensureCtx() {
     analyser.smoothingTimeConstant = 0.75;
     master = audioCtx.createGain();
     master.gain.value = 0.8;
-    master.connect(analyser);
+
+    // Filter
+    filterNode = audioCtx.createBiquadFilter();
+    filterNode.type = 'lowpass';
+    filterNode.frequency.value = FX.cutoff;
+    filterNode.Q.value = FX.resonance;
+
+    // Distortion
+    distNode = audioCtx.createWaveShaper();
+    distNode.curve = distCurve(FX.distortion);
+    distNode.oversample = '2x';
+
+    // Tremolo — LFO → depthGain → tremoloGain.gain
+    tremoloGain = audioCtx.createGain();
+    tremoloGain.gain.value = 1;
+    tremoloLFO = audioCtx.createOscillator();
+    tremoloLFO.type = 'sine';
+    tremoloLFO.frequency.value = FX.tremolo;
+    tremoloDepthNode = audioCtx.createGain();
+    tremoloDepthNode.gain.value = 0;
+    tremoloLFO.connect(tremoloDepthNode);
+    tremoloDepthNode.connect(tremoloGain.gain);
+    tremoloLFO.start();
+
+    // Delay with feedback loop
+    postDelay = audioCtx.createGain();
+    delayNode = audioCtx.createDelay(2.0);
+    delayNode.delayTime.value = 0.375;
+    delayFeedbackNode = audioCtx.createGain();
+    delayFeedbackNode.gain.value = FX.delayFeedback;
+    delayDryGain = audioCtx.createGain();
+    delayDryGain.gain.value = 1;
+    delayWetGain = audioCtx.createGain();
+    delayWetGain.gain.value = 0;
+    delayNode.connect(delayFeedbackNode);
+    delayFeedbackNode.connect(delayNode);
+
+    // Reverb (convolver + generated impulse)
+    reverbNode = audioCtx.createConvolver();
+    reverbNode.buffer = generateReverbIR(audioCtx);
+    reverbDryGain = audioCtx.createGain();
+    reverbDryGain.gain.value = 1;
+    reverbWetGain = audioCtx.createGain();
+    reverbWetGain.gain.value = 0;
+
+    // Chain: master → filter → dist → tremolo → [delay] → [reverb] → analyser → destination
+    master.connect(filterNode);
+    filterNode.connect(distNode);
+    distNode.connect(tremoloGain);
+    tremoloGain.connect(delayDryGain);
+    tremoloGain.connect(delayNode);
+    delayNode.connect(delayWetGain);
+    delayDryGain.connect(postDelay);
+    delayWetGain.connect(postDelay);
+    postDelay.connect(reverbDryGain);
+    postDelay.connect(reverbNode);
+    reverbNode.connect(reverbWetGain);
+    reverbDryGain.connect(analyser);
+    reverbWetGain.connect(analyser);
     analyser.connect(audioCtx.destination);
   }
   if (audioCtx.state === 'suspended') audioCtx.resume();
@@ -714,6 +891,19 @@ const S = {
   decay:   0.40,
 };
 
+/* ── FX state ───────────────────────────────────────── */
+const FX = {
+  attack:        0.006,
+  cutoff:        18000,
+  resonance:     1.0,
+  detune:        0,
+  tremolo:       0,
+  distortion:    0,
+  delayMix:      0,
+  delayFeedback: 0.35,
+  reverb:        0,
+};
+
 /* ── Scales ─────────────────────────────────────────── */
 const SCALE_IVLS = {
   chromatic:            [0,1,2,3,4,5,6,7,8,9,10,11],
@@ -809,19 +999,36 @@ function reflectNote(note) {
 /* ── Audio ──────────────────────────────────────────── */
 function playTone(freq, note, when) {
   const dur = note.decay;
+  const atk = Math.max(FX.attack, 0.001);
   const osc  = audioCtx.createOscillator();
   const gain = audioCtx.createGain();
   osc.type = note.wave;
   osc.frequency.value = freq;
   const pk = note.vol * 0.7;
   gain.gain.setValueAtTime(0, when);
-  gain.gain.linearRampToValueAtTime(pk,          when + 0.006);
-  gain.gain.exponentialRampToValueAtTime(pk * 0.36, when + 0.06);
-  gain.gain.exponentialRampToValueAtTime(0.001,   when + dur);
+  gain.gain.linearRampToValueAtTime(pk, when + atk);
+  gain.gain.exponentialRampToValueAtTime(pk * 0.36, when + atk + 0.054);
+  gain.gain.exponentialRampToValueAtTime(0.001, when + dur);
   osc.connect(gain);
   gain.connect(master);
   osc.start(when);
   osc.stop(when + dur + 0.02);
+
+  if (FX.detune > 0) {
+    const osc2 = audioCtx.createOscillator();
+    const gain2 = audioCtx.createGain();
+    osc2.type = note.wave;
+    osc2.frequency.value = freq;
+    osc2.detune.value = FX.detune;
+    gain2.gain.setValueAtTime(0, when);
+    gain2.gain.linearRampToValueAtTime(pk * 0.55, when + atk);
+    gain2.gain.exponentialRampToValueAtTime(pk * 0.55 * 0.36, when + atk + 0.054);
+    gain2.gain.exponentialRampToValueAtTime(0.001, when + dur);
+    osc2.connect(gain2);
+    gain2.connect(master);
+    osc2.start(when);
+    osc2.stop(when + dur + 0.02);
+  }
 }
 
 /* ── Sequencer ──────────────────────────────────────── */
@@ -1161,6 +1368,7 @@ const HELP_COLS = [
   ['head', 'SEQUENCER', ''],
   ['row',  'space',          'play / stop'],
   ['row',  'H',              'toggle help'],
+  ['row',  'shift (hold)',   'wave shaper panel'],
   ['row',  'click empty',    'place note'],
   ['row',  'drag',           'paint notes'],
   ['row',  'click note',     'select note'],
@@ -1312,6 +1520,145 @@ function hideHelp() {
 }
 
 document.getElementById('hbtn').addEventListener('click', () => helpVisible ? hideHelp() : showHelp());
+
+/* ── Oscilloscope ───────────────────────────────────── */
+let scopeActive = false;
+function drawScope() {
+  if (!scopeActive) return;
+  const cv = document.getElementById('scope-cv');
+  if (!cv) return;
+  const ctx2 = cv.getContext('2d');
+  const W = cv.offsetWidth || 220, H = 56;
+  cv.width = W; cv.height = H;
+  ctx2.clearRect(0, 0, W, H);
+  if (analyser) {
+    const buf = new Uint8Array(analyser.fftSize);
+    analyser.getByteTimeDomainData(buf);
+    ctx2.strokeStyle = lineColor;
+    ctx2.shadowColor = lineColor;
+    ctx2.shadowBlur = 5;
+    ctx2.lineWidth = 1.2;
+    ctx2.globalAlpha = 0.9;
+    ctx2.beginPath();
+    for (let i = 0; i < buf.length; i++) {
+      const x = (i / (buf.length - 1)) * W;
+      const y = ((buf[i] / 128) - 1) * (H * 0.42) + H / 2;
+      i === 0 ? ctx2.moveTo(x, y) : ctx2.lineTo(x, y);
+    }
+    ctx2.stroke();
+  } else {
+    ctx2.strokeStyle = lineColor;
+    ctx2.globalAlpha = 0.2;
+    ctx2.lineWidth = 1;
+    ctx2.beginPath();
+    ctx2.moveTo(0, H / 2); ctx2.lineTo(W, H / 2);
+    ctx2.stroke();
+  }
+  ctx2.globalAlpha = 1; ctx2.shadowBlur = 0;
+  requestAnimationFrame(drawScope);
+}
+
+/* ── Shift — wave panel toggle ──────────────────────── */
+let shiftActive = false;
+document.addEventListener('keydown', e => {
+  if (e.key === 'Shift' && !shiftActive) {
+    shiftActive = true;
+    document.getElementById('viz-cv').style.display = 'none';
+    document.getElementById('shift-hint').style.display = 'none';
+    document.getElementById('wave-panel').style.display = 'flex';
+    if (!scopeActive) { scopeActive = true; drawScope(); }
+  }
+});
+document.addEventListener('keyup', e => {
+  if (e.key === 'Shift') {
+    shiftActive = false;
+    document.getElementById('viz-cv').style.display = '';
+    document.getElementById('shift-hint').style.display = '';
+    document.getElementById('wave-panel').style.display = 'none';
+    scopeActive = false;
+  }
+});
+
+/* ── FX controls ────────────────────────────────────── */
+document.getElementById('atkSlider').addEventListener('input', function () {
+  FX.attack = this.value / 1000;
+  document.getElementById('atkVal').textContent = `${this.value}ms`;
+});
+document.getElementById('cutSlider').addEventListener('input', function () {
+  const hz = Math.round(200 * Math.pow(100, this.value / 100));
+  FX.cutoff = hz;
+  if (filterNode) filterNode.frequency.setTargetAtTime(hz, audioCtx.currentTime, 0.01);
+  const disp = hz >= 18000 ? 'open' : hz >= 1000 ? `${(hz/1000).toFixed(1)}k` : `${hz}`;
+  document.getElementById('cutVal').textContent = disp;
+});
+document.getElementById('resSlider').addEventListener('input', function () {
+  const q = 0.1 + (this.value / 100) * 11.9;
+  FX.resonance = q;
+  if (filterNode) filterNode.Q.setTargetAtTime(q, audioCtx.currentTime, 0.01);
+  document.getElementById('resVal').textContent = q.toFixed(1);
+});
+document.getElementById('detSlider').addEventListener('input', function () {
+  FX.detune = +this.value;
+  document.getElementById('detVal').textContent = `${this.value}¢`;
+});
+document.getElementById('trmSlider').addEventListener('input', function () {
+  const rate = this.value / 10;
+  FX.tremolo = rate;
+  if (tremoloLFO) tremoloLFO.frequency.setTargetAtTime(rate, audioCtx.currentTime, 0.01);
+  if (tremoloDepthNode) tremoloDepthNode.gain.setTargetAtTime(rate > 0 ? 0.18 : 0, audioCtx.currentTime, 0.01);
+  document.getElementById('trmVal').textContent = rate === 0 ? 'off' : `${rate.toFixed(1)}Hz`;
+});
+document.getElementById('dstSlider').addEventListener('input', function () {
+  FX.distortion = this.value / 100;
+  if (distNode) distNode.curve = distCurve(FX.distortion);
+  document.getElementById('dstVal').textContent = `${this.value}%`;
+});
+document.getElementById('dlySlider').addEventListener('input', function () {
+  FX.delayMix = this.value / 100;
+  if (delayDryGain) delayDryGain.gain.setTargetAtTime(1 - FX.delayMix, audioCtx.currentTime, 0.01);
+  if (delayWetGain) delayWetGain.gain.setTargetAtTime(FX.delayMix, audioCtx.currentTime, 0.01);
+  document.getElementById('dlyVal').textContent = `${this.value}%`;
+});
+document.getElementById('fdbSlider').addEventListener('input', function () {
+  FX.delayFeedback = this.value / 100;
+  if (delayFeedbackNode) delayFeedbackNode.gain.setTargetAtTime(FX.delayFeedback, audioCtx.currentTime, 0.01);
+  document.getElementById('fdbVal').textContent = `${this.value}%`;
+});
+document.getElementById('revSlider').addEventListener('input', function () {
+  FX.reverb = this.value / 100;
+  if (reverbDryGain) reverbDryGain.gain.setTargetAtTime(1 - FX.reverb, audioCtx.currentTime, 0.01);
+  if (reverbWetGain) reverbWetGain.gain.setTargetAtTime(FX.reverb, audioCtx.currentTime, 0.01);
+  document.getElementById('revVal').textContent = `${this.value}%`;
+});
+
+document.getElementById('fxResetBtn').addEventListener('click', () => {
+  const defaults = { attack:0.006, cutoff:18000, resonance:1.0, detune:0, tremolo:0, distortion:0, delayMix:0, delayFeedback:0.35, reverb:0 };
+  Object.assign(FX, defaults);
+
+  document.getElementById('atkSlider').value  = 6;    document.getElementById('atkVal').textContent  = '6ms';
+  document.getElementById('cutSlider').value  = 100;  document.getElementById('cutVal').textContent  = 'open';
+  document.getElementById('resSlider').value  = 0;    document.getElementById('resVal').textContent  = '1.0';
+  document.getElementById('detSlider').value  = 0;    document.getElementById('detVal').textContent  = '0¢';
+  document.getElementById('trmSlider').value  = 0;    document.getElementById('trmVal').textContent  = 'off';
+  document.getElementById('dstSlider').value  = 0;    document.getElementById('dstVal').textContent  = '0%';
+  document.getElementById('dlySlider').value  = 0;    document.getElementById('dlyVal').textContent  = '0%';
+  document.getElementById('fdbSlider').value  = 35;   document.getElementById('fdbVal').textContent  = '35%';
+  document.getElementById('revSlider').value  = 0;    document.getElementById('revVal').textContent  = '0%';
+
+  if (audioCtx) {
+    const t = audioCtx.currentTime;
+    filterNode.frequency.setTargetAtTime(18000, t, 0.01);
+    filterNode.Q.setTargetAtTime(1.0, t, 0.01);
+    distNode.curve = distCurve(0);
+    tremoloLFO.frequency.setTargetAtTime(0, t, 0.01);
+    tremoloDepthNode.gain.setTargetAtTime(0, t, 0.01);
+    delayDryGain.gain.setTargetAtTime(1, t, 0.01);
+    delayWetGain.gain.setTargetAtTime(0, t, 0.01);
+    delayFeedbackNode.gain.setTargetAtTime(0.35, t, 0.01);
+    reverbDryGain.gain.setTargetAtTime(1, t, 0.01);
+    reverbWetGain.gain.setTargetAtTime(0, t, 0.01);
+  }
+});
 
 /* ── Init ───────────────────────────────────────────── */
 buildPageBar();
