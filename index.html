@@ -133,6 +133,19 @@
     .cell.on.ph::after { background: var(--accent); box-shadow: 0 0 14px var(--accent), 0 0 30px var(--accent); opacity: 1; }
     .cell.beat-col:not(.on) { border-color: #181818; }
     .cell.on.sel { outline: 1px solid rgba(255,255,255,0.55); outline-offset: 2px; }
+    .cell.on.sel:hover::before {
+      content: '×';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 26px;
+      line-height: 1;
+      letter-spacing: 0;
+      color: rgba(255,255,255,0.90);
+      text-shadow: 0 0 6px rgba(255,255,255,0.7);
+      z-index: 2;
+      pointer-events: none;
+    }
     @keyframes flash {
       0%   { box-shadow: 0 0 24px var(--accent), 0 0 48px var(--accent); opacity: 1; }
       100% { box-shadow: 0 0 8px var(--accent); opacity: .75; }
@@ -150,6 +163,57 @@
       display: flex;
       flex-direction: column;
       flex-shrink: 0;
+    }
+    .grid-with-rows {
+      display: flex;
+      flex-direction: row;
+      gap: 2px;
+      align-items: flex-start;
+    }
+    .step-grid-col {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Row mute bar ─────────────────────────────────── */
+    .row-bar {
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+      /* align pips with grid rows: stepbar(2px) + margin-bottom(6px) + grid border(1px) + grid padding(4px) */
+      padding-top: 13px;
+      padding-bottom: 5px;
+      flex-shrink: 0;
+    }
+    .row-pip {
+      height: var(--cell);
+      width: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .row-pip::after {
+      content: '';
+      display: block;
+      width: 2px;
+      height: 100%;
+      border-radius: 1px;
+      background: #1a1a1a;
+      transition: background .08s, box-shadow .08s, opacity .08s;
+    }
+    .row-pip:hover::after {
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent), 0 0 12px var(--accent);
+    }
+    .row-pip.muted::after {
+      opacity: 0;
+    }
+    .row-pip.muted:hover::after {
+      opacity: 0.5;
+      background: var(--accent);
+      box-shadow: 0 0 6px var(--accent), 0 0 12px var(--accent);
     }
 
     /* ── Controls panel ───────────────────────────────── */
@@ -316,8 +380,10 @@
       background: none; border: none;
       font-family: 'Share Tech Mono', monospace;
       font-size: 14px; letter-spacing: 2px;
+      line-height: 1;
       color: rgba(255,255,255,0.25);
       cursor: pointer; padding: 0;
+      vertical-align: middle;
       transition: color .1s, text-shadow .1s;
     }
     .page-btn:hover { color: rgba(255,255,255,0.6); }
@@ -333,9 +399,11 @@
     .copy-btn {
       background: none; border: none;
       font-family: 'Share Tech Mono', monospace;
-      font-size: 14px; letter-spacing: 0;
+      font-size: 14px; letter-spacing: 2px;
+      line-height: 1;
       color: rgba(255,255,255,0.25);
       cursor: pointer; padding: 0;
+      vertical-align: middle;
       transition: color .1s, text-shadow .1s;
     }
     .copy-btn:hover { color: rgba(255,255,255,0.6); }
@@ -428,8 +496,13 @@
   <div class="main-layout">
 
     <div class="grid-col">
-      <div class="step-bar" id="stepBar"></div>
-      <div class="grid" id="grid"></div>
+      <div class="grid-with-rows">
+        <div class="row-bar" id="rowBar"></div>
+        <div class="step-grid-col">
+          <div class="step-bar" id="stepBar"></div>
+          <div class="grid" id="grid"></div>
+        </div>
+      </div>
     </div>
 
     <div class="ctrl-panel">
@@ -691,6 +764,7 @@ let tremoloGain = null, tremoloLFO = null, tremoloDepthNode = null;
 let delayNode = null, delayFeedbackNode = null;
 let reverbNode = null, reverbOutGain = null;
 let globalHPF = null, globalLPF = null;
+let globalReverbSendNode = null;
 
 function distCurve(amount) {
   const n = 256, curve = new Float32Array(n), k = amount * 200;
@@ -759,12 +833,19 @@ function ensureCtx() {
     globalLPF.frequency.value = FX.lpfCutoff;
     globalLPF.Q.value = 0.7;
 
+    // Global reverb pre-mix — taps dry signal after tone filters into reverb bus
+    globalReverbSendNode = audioCtx.createGain();
+    globalReverbSendNode.gain.value = 0.22;
+
     // Chain: master → tremolo → HPF → LPF → analyser → destination
     // delay and reverb buses feed directly into analyser (bypass tone filters)
+    // global reverb send taps off LPF into reverb bus
     master.connect(tremoloGain);
     tremoloGain.connect(globalHPF);
     globalHPF.connect(globalLPF);
     globalLPF.connect(analyser);
+    globalLPF.connect(globalReverbSendNode);
+    globalReverbSendNode.connect(reverbNode);
     delayNode.connect(analyser);
     reverbOutGain.connect(analyser);
     analyser.connect(audioCtx.destination);
@@ -1010,6 +1091,67 @@ function freqFor(scaleName, row) {
   return FREQ_CACHES[scaleName][row];
 }
 
+/* ── Row mute state ─────────────────────────────────── */
+const mutedRows = new Set();
+const rowPips   = [];
+let muteIndicEl    = null;
+let muteIndicTimer = null;
+let muteCharIdx    = 0;
+const MUTE_OPACITIES = [0.25, 1.0]; // ░-like → █-like via opacity
+
+function startMuteIndicator() {
+  if (muteIndicTimer) return;
+  muteCharIdx = 0;
+  function tick() {
+    if (!muteIndicEl) return;
+    if (mutedRows.size === 0) { stopMuteIndicator(); return; }
+    const op = MUTE_OPACITIES[muteCharIdx % 2];
+    muteIndicEl.style.opacity    = op;
+    muteIndicEl.style.color      = lineColor;
+    muteIndicEl.style.textShadow = op === 1.0 ? `0 0 8px ${lineColor}` : 'none';
+    muteCharIdx++;
+    // half BPM pace: one character step per half-beat
+    muteIndicTimer = setTimeout(tick, (60 / S.bpm) * 1000);
+  }
+  tick();
+}
+
+function stopMuteIndicator() {
+  if (muteIndicTimer) { clearTimeout(muteIndicTimer); muteIndicTimer = null; }
+  if (muteIndicEl) {
+    muteIndicEl.style.opacity    = '';
+    muteIndicEl.style.color      = '';
+    muteIndicEl.style.textShadow = '';
+  }
+}
+
+function unmuteAll() {
+  mutedRows.clear();
+  rowPips.forEach(p => p.classList.remove('muted'));
+  stopMuteIndicator();
+}
+
+function buildRowBar() {
+  const bar = document.getElementById('rowBar');
+  for (let r = 0; r < ROWS; r++) {
+    const pip = document.createElement('div');
+    pip.className = 'row-pip';
+    pip.addEventListener('click', () => {
+      if (mutedRows.has(r)) {
+        mutedRows.delete(r);
+        pip.classList.remove('muted');
+        if (mutedRows.size === 0) stopMuteIndicator();
+      } else {
+        mutedRows.add(r);
+        pip.classList.add('muted');
+        startMuteIndicator();
+      }
+    });
+    bar.appendChild(pip);
+    rowPips.push(pip);
+  }
+}
+
 /* ── Selection ──────────────────────────────────────── */
 let selR = -1, selC = -1;
 
@@ -1155,6 +1297,7 @@ function tick() {
   while (nextWhen < audioCtx.currentTime + LOOKAHEAD) {
     const step = nextIdx, when = nextWhen;
     for (let r = 0; r < ROWS; r++) {
+      if (mutedRows.has(r)) continue;
       const note = S.cells[r][step];
       if (note) playTone(freqFor(note.scale, r), note, when);
     }
@@ -1339,6 +1482,20 @@ let copyBtn = null;
 
 function buildPageBar() {
   const bar = document.getElementById('pageBar');
+
+  // mute indicator — █ normally; cycles ░▒▓ at half-BPM when any row is muted
+  muteIndicEl = document.createElement('button');
+  muteIndicEl.className = 'page-btn';
+  muteIndicEl.tabIndex  = -1;
+  muteIndicEl.textContent = '\u2588'; // █
+  muteIndicEl.style.letterSpacing = '0';
+  muteIndicEl.style.display = 'inline-block';
+  muteIndicEl.style.minWidth = '16px';
+  muteIndicEl.style.textAlign = 'center';
+  muteIndicEl.style.overflow = 'hidden';
+  muteIndicEl.title = 'unmute all rows';
+  muteIndicEl.addEventListener('click', unmuteAll);
+  bar.appendChild(muteIndicEl);
 
   for (let i = 0; i < N_PAGES; i++) {
     const btn = document.createElement('button');
@@ -1910,6 +2067,7 @@ document.getElementById('fxResetBtn').addEventListener('click', () => {
 /* ── Init ───────────────────────────────────────────── */
 buildPageBar();
 buildStepBar();
+buildRowBar();
 buildGrid();
 updateSelLabel();
 </script>
