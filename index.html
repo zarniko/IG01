@@ -9,6 +9,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :focus { outline: none; }
+    :focus-visible { outline: none; }
 
     :root {
       --accent: #fff;
@@ -1533,12 +1535,12 @@ const HELP_COLS = [
   ['row',  'click note',     'select note'],
   ['row',  'click selected', 'erase note'],
   ['row',  'drag on notes',  'erase notes'],
-  ['gap'],
-  ['head', 'MOBILE', ''],
-  ['row',  'tap empty',       'place note'],
-  ['row',  'tap note',        'select / deselect'],
-  ['row',  'long-press note', 'erase note'],
-  ['row',  'drag',            'paint / erase'],
+  ['gap',  '', '',                true],
+  ['head', 'MOBILE', '',          true],
+  ['row',  'tap empty',       'place note',        true],
+  ['row',  'tap note',        'select / deselect', true],
+  ['row',  'long-press note', 'erase note',        true],
+  ['row',  'drag',            'paint / erase',     true],
   ['gap'],
   ['head', 'PAGES', ''],
   ['row',  '1 – 8',   'switch page'],
@@ -1579,7 +1581,9 @@ function showHelp() {
   if (helpVisible) return;
   helpVisible = true;
 
-  const narrow = window.innerWidth <= 580;
+  const w = window.innerWidth;
+  const narrow = w <= 580;
+  const cols   = narrow ? 1 : w >= 900 ? 3 : 2;
 
   const ov = document.createElement('div');
   ov.id = 'help-ov';
@@ -1590,6 +1594,8 @@ function showHelp() {
     overflow: narrow ? 'auto' : 'hidden',
     paddingTop: narrow ? '48px' : '0',
     paddingBottom: narrow ? '32px' : '0',
+    paddingLeft: narrow ? '20px' : '0',
+    paddingRight: narrow ? '20px' : '0',
     boxSizing: 'border-box',
   });
 
@@ -1628,70 +1634,71 @@ function showHelp() {
 
   // help grid
   const grid = document.createElement('div');
+  const maxW = cols === 1 ? '95vw' : cols === 2 ? '560px' : '820px';
   Object.assign(grid.style, {
     position: 'relative', zIndex: '10',
-    display: 'grid',
-    gridTemplateColumns: narrow ? '1fr' : '1fr 1fr',
-    columnGap: '48px',
-    rowGap: '0px',
     fontFamily: "'Share Tech Mono', monospace", fontSize: '14px',
     lineHeight: '1.5', letterSpacing: '2px',
     userSelect: 'none', color: lineColor,
-    maxWidth: narrow ? '95vw' : '560px', width: narrow ? '95vw' : '90vw',
+    maxWidth: maxW, width: cols === 1 ? '100%' : '90vw',
     textShadow: `0 0 8px ${lineColor}60`,
+    columnCount: String(cols),
+    columnGap: '48px',
   });
 
-  // split into columns (single on narrow screens)
-  const mid = Math.ceil(HELP_COLS.length / 2);
-  const halves = narrow ? [HELP_COLS] : [HELP_COLS.slice(0, mid), HELP_COLS.slice(mid)];
+  function renderItem(item, container) {
+    if (item[0] === 'head') {
+      const h = document.createElement('div');
+      h.textContent = item[1];
+      h.style.cssText = `grid-column:1/-1; color:${lineColor}; opacity:0.55; margin-bottom:6px; letter-spacing:3px;`;
+      container.appendChild(h);
+      if (item[2]) {
+        const sub = document.createElement('div');
+        sub.textContent = item[2];
+        sub.style.cssText = `grid-column:1/-1; opacity:0.35; font-size:12px; margin-bottom:2px; letter-spacing:2px;`;
+        container.appendChild(sub);
+      }
+      return;
+    }
+    const k = document.createElement('div');
+    k.textContent = item[1];
+    k.style.cssText = 'white-space:nowrap; opacity:0.90;';
+    const d = document.createElement('div');
+    d.textContent = item[2];
+    d.style.cssText = 'opacity:0.45;';
+    container.appendChild(k);
+    container.appendChild(d);
+  }
 
-  halves.forEach(half => {
-    const col = document.createElement('div');
-    Object.assign(col.style, {
+  // group into sections separated by gaps; each section gets break-inside:avoid
+  const visibleItems = narrow ? HELP_COLS : HELP_COLS.filter(item => !item[3]);
+  let sectionItems = [];
+
+  function flushSection() {
+    if (!sectionItems.length) return;
+    const sec = document.createElement('div');
+    Object.assign(sec.style, {
+      breakInside: 'avoid',
       display: 'grid',
       gridTemplateColumns: 'max-content 1fr',
       columnGap: '20px',
       rowGap: '0px',
-      alignContent: 'start',
+      marginBottom: '22px',
     });
+    sectionItems.forEach(item => renderItem(item, sec));
+    grid.appendChild(sec);
+    sectionItems = [];
+  }
 
-    half.forEach(item => {
-      if (item[0] === 'gap') {
-        const sp = document.createElement('div');
-        sp.style.cssText = 'grid-column:1/-1; height:22px;';
-        col.appendChild(sp);
-        return;
-      }
-      if (item[0] === 'head') {
-        const h = document.createElement('div');
-        h.textContent = item[1];
-        h.style.cssText = `grid-column:1/-1; color:${lineColor}; opacity:0.55; margin-bottom:6px; letter-spacing:3px;`;
-        col.appendChild(h);
-        if (item[2]) {
-          const sub = document.createElement('div');
-          sub.textContent = item[2];
-          sub.style.cssText = `grid-column:1/-1; opacity:0.35; font-size:12px; margin-bottom:2px; letter-spacing:2px;`;
-          col.appendChild(sub);
-        }
-        return;
-      }
-      // row
-      const k = document.createElement('div');
-      k.textContent = item[1];
-      k.style.cssText = 'white-space:nowrap; opacity:0.90;';
-      const d = document.createElement('div');
-      d.textContent = item[2];
-      d.style.cssText = 'opacity:0.45;';
-      col.appendChild(k);
-      col.appendChild(d);
-    });
-
-    grid.appendChild(col);
+  visibleItems.forEach(item => {
+    if (item[0] === 'gap') { flushSection(); }
+    else { sectionItems.push(item); }
   });
+  flushSection();
 
   ov.appendChild(grid);
 
-  ov.addEventListener('click', e => { if (e.target === ov || e.target === grid) hideHelp(); });
+  ov.addEventListener('click', hideHelp);
   document.body.appendChild(ov);
 
   function onResize() {
@@ -1762,7 +1769,7 @@ function openShiftPanel() {
   document.getElementById('viz-cv').style.display = 'none';
   document.getElementById('wave-panel').style.display = 'flex';
   const hint = document.getElementById('shift-hint');
-  hint.textContent = 'fx ×';
+  hint.textContent = 'fx(shift)';
   hint.style.color = lineColor;
   if (!scopeActive) { scopeActive = true; drawScope(); }
 }
@@ -1785,7 +1792,10 @@ document.getElementById('shift-hint').addEventListener('click', () => {
 });
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'Shift') openShiftPanel();
+  if (e.key === 'Shift') {
+    if (shiftLocked) closeShiftPanel();
+    else openShiftPanel();
+  }
 });
 document.addEventListener('keyup', e => {
   if (e.key === 'Shift' && !shiftLocked) closeShiftPanel();
