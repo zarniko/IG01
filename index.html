@@ -125,9 +125,9 @@
     }
     .cell:hover        { background: #0e0e0e; border-color: #282828; }
     .cell.ph           { background: rgba(255,255,255,0.03); border-color: rgba(255,255,255,0.14); }
-    .cell.on           { background: rgba(255,255,255,0.06); border-color: var(--accent); }
+    .cell.on           { background: rgba(255,255,255,0.06); border-color: transparent; }
     .cell.on::after    { background: var(--accent); box-shadow: 0 0 8px var(--accent), 0 0 18px var(--accent); opacity: .75; }
-    .cell.on.ph        { background: rgba(255,255,255,0.10); border-color: var(--accent); }
+    .cell.on.ph        { background: rgba(255,255,255,0.10); border-color: transparent; }
     .cell.on.ph::after { background: var(--accent); box-shadow: 0 0 14px var(--accent), 0 0 30px var(--accent); opacity: 1; }
     .cell.beat-col:not(.on) { border-color: #181818; }
     .cell.on.sel { outline: 1px solid rgba(255,255,255,0.55); outline-offset: 2px; }
@@ -615,7 +615,7 @@
       <div class="panel-rule"></div>
       <div class="footer">
         <a id="zko" href="https://zko.io" target="_blank" rel="noopener">░▒▓░</a>
-        <button id="hbtn" tabindex="-1">H</button>
+        <button id="hbtn" tabindex="-1">help(h)</button>
       </div>
 
     </div><!-- /ctrl-panel -->
@@ -1520,16 +1520,25 @@ let helpVisible = false;
 
 const HELP_COLS = [
   // [ type, key, desc ]   type: 'head' | 'row' | 'gap'
-  ['head', 'SEQUENCER', ''],
-  ['row',  'space',          'play / stop'],
-  ['row',  'H',              'toggle help'],
-  ['row',  'shift (hold)',   'per-note fx panel'],
+  ['head', 'KEYS', ''],
+  ['row',  'space',        'play / stop'],
+  ['row',  'h',            'toggle help'],
+  ['row',  'shift (hold)', 'per-note fx panel'],
+  ['row',  'R',            'random pattern + scale'],
+  ['row',  'C',            'clear pattern'],
+  ['gap'],
+  ['head', 'GRID', ''],
   ['row',  'click empty',    'place note'],
   ['row',  'drag',           'paint notes'],
   ['row',  'click note',     'select note'],
   ['row',  'click selected', 'erase note'],
-  ['row',  'R / rand',       'ambient pattern + scale'],
-  ['row',  'C / clear',      'erase all'],
+  ['row',  'drag on notes',  'erase notes'],
+  ['gap'],
+  ['head', 'MOBILE', ''],
+  ['row',  'tap empty',       'place note'],
+  ['row',  'tap note',        'select / deselect'],
+  ['row',  'long-press note', 'erase note'],
+  ['row',  'drag',            'paint / erase'],
   ['gap'],
   ['head', 'PAGES', ''],
   ['row',  '1 – 8',   'switch page'],
@@ -1570,13 +1579,18 @@ function showHelp() {
   if (helpVisible) return;
   helpVisible = true;
 
+  const narrow = window.innerWidth <= 580;
+
   const ov = document.createElement('div');
   ov.id = 'help-ov';
   Object.assign(ov.style, {
     position: 'fixed', inset: '0', zIndex: '9999',
     background: 'rgba(0,0,0,0.92)',
-    display: 'flex', alignItems: 'center', justifyContent: 'center',
-    overflow: 'hidden',
+    display: 'flex', alignItems: narrow ? 'flex-start' : 'center', justifyContent: 'center',
+    overflow: narrow ? 'auto' : 'hidden',
+    paddingTop: narrow ? '48px' : '0',
+    paddingBottom: narrow ? '32px' : '0',
+    boxSizing: 'border-box',
   });
 
   // scanlines
@@ -1598,7 +1612,7 @@ function showHelp() {
   // close hint — anchored to the exact screen position of #hbtn
   const hbtnRect = document.getElementById('hbtn').getBoundingClientRect();
   const esc = document.createElement('div');
-  esc.textContent = 'H';
+  esc.textContent = 'help(h)';
   Object.assign(esc.style, {
     position: 'fixed',
     left: `${hbtnRect.left}px`, top: `${hbtnRect.top}px`,
@@ -1617,19 +1631,19 @@ function showHelp() {
   Object.assign(grid.style, {
     position: 'relative', zIndex: '10',
     display: 'grid',
-    gridTemplateColumns: '1fr 1fr',
+    gridTemplateColumns: narrow ? '1fr' : '1fr 1fr',
     columnGap: '48px',
     rowGap: '0px',
     fontFamily: "'Share Tech Mono', monospace", fontSize: '14px',
     lineHeight: '1.5', letterSpacing: '2px',
     userSelect: 'none', color: lineColor,
-    maxWidth: '560px', width: '90vw',
+    maxWidth: narrow ? '95vw' : '560px', width: narrow ? '95vw' : '90vw',
     textShadow: `0 0 8px ${lineColor}60`,
   });
 
-  // split into left and right half-columns
+  // split into columns (single on narrow screens)
   const mid = Math.ceil(HELP_COLS.length / 2);
-  const halves = [HELP_COLS.slice(0, mid), HELP_COLS.slice(mid)];
+  const halves = narrow ? [HELP_COLS] : [HELP_COLS.slice(0, mid), HELP_COLS.slice(mid)];
 
   halves.forEach(half => {
     const col = document.createElement('div');
@@ -1679,13 +1693,24 @@ function showHelp() {
 
   ov.addEventListener('click', e => { if (e.target === ov || e.target === grid) hideHelp(); });
   document.body.appendChild(ov);
+
+  function onResize() {
+    if (!helpVisible) return;
+    hideHelp();
+    showHelp();
+  }
+  ov._onResize = onResize;
+  window.addEventListener('resize', onResize);
 }
 
 function hideHelp() {
   if (!helpVisible) return;
   helpVisible = false;
   const ov = document.getElementById('help-ov');
-  if (ov) ov.remove();
+  if (ov) {
+    if (ov._onResize) window.removeEventListener('resize', ov._onResize);
+    ov.remove();
+  }
 }
 
 document.getElementById('hbtn').addEventListener('click', () => helpVisible ? hideHelp() : showHelp());
