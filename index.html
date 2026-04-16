@@ -1650,68 +1650,244 @@ document.getElementById('randBtn').addEventListener('click', () => {
   for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
   clearSel();
 
-  // Pick an ambient-friendly scale (weighted toward pentatonic / modal)
+  const rng  = () => Math.random();
+  const pick = a => a[Math.random() * a.length | 0];
+  const rngR = (lo, hi) => lo + rng() * (hi - lo);
+
+  // ── Scale — weighted toward ambient/modal ──────────────
   const AMBIENT_SCALES = [
     'major_pentatonic','major_pentatonic','major_pentatonic',
     'minor_pentatonic','minor_pentatonic','minor_pentatonic',
     'aeolian','aeolian','dorian','dorian',
     'hawaiian','egyptian','balinese_pelog','japanese_miyakobushi',
-    'whole_tone','melodic_minor',
+    'whole_tone','melodic_minor','ryuku',
   ];
-  const chosenScale = AMBIENT_SCALES[Math.floor(Math.random() * AMBIENT_SCALES.length)];
+  const chosenScale = pick(AMBIENT_SCALES);
   S.scale = chosenScale;
   document.getElementById('scaleSelect').value = chosenScale;
 
-  // Wave pool weighted toward soft oscillators
-  const WAVE_POOL = ['sine','sine','sine','sine','triangle','triangle','triangle','square','sawtooth'];
-  const beats = new Set([0, 4, 8, 12]);
+  // ── BPM — downtempo 58–108 ────────────────────────────
+  const bpm = Math.round(rngR(58, 108));
+  S.bpm = bpm;
+  document.getElementById('bpmSlider').value = bpm;
+  document.getElementById('bpmVal').textContent = bpm;
 
-  const fxSnap = () => ({
-    attack: FX.attack, detune: FX.detune,
-    cutoff: FX.cutoff, resonance: FX.resonance, distortion: FX.distortion,
-    delaySend: FX.delaySend, reverbSend: FX.reverbSend,
-  });
+  // ── Wave palette per register ─────────────────────────
+  const bassWaves = ['sine','sine','triangle'];
+  const midWaves  = ['sine','sine','triangle','triangle'];
+  const hiWaves   = ['sine','triangle','sine','triangle','square'];
+  function waveFor(r) {
+    if (r >= 12) return pick(bassWaves);
+    if (r >= 5)  return pick(midWaves);
+    return pick(hiWaves);
+  }
 
-  function rndNote(softBias) {
-    const soft = Math.random() < (softBias ?? 0.7);
+  // ── Global FX: ambient-friendly randomized values ─────
+  const gAtk     = rngR(0.01, 0.12);
+  const gDetune  = rngR(0, 8);
+  const gCutoff  = Math.round(rngR(2400, 12000));
+  const gRes     = rngR(0.5, 3.5);
+  const gDist    = rng() < 0.2 ? rngR(0.02, 0.10) : 0;
+  const gDelay   = rngR(0.05, 0.22);
+  const gReverb  = rngR(0.15, 0.45);
+  const gFeedback = rngR(0.25, 0.55);
+  const gLPF     = Math.round(rngR(4000, 18000));
+  const gTremolo = rng() < 0.3 ? rngR(0.5, 3.5) : 0;
+
+  FX.attack = gAtk; FX.detune = gDetune; FX.cutoff = gCutoff;
+  FX.resonance = gRes; FX.distortion = gDist;
+  FX.delaySend = gDelay; FX.reverbSend = gReverb;
+  FX.delayFeedback = gFeedback; FX.lpfCutoff = gLPF; FX.tremolo = gTremolo;
+
+  // sync sliders
+  document.getElementById('atkSlider').value = Math.round(gAtk * 1000);
+  document.getElementById('atkVal').textContent = `${Math.round(gAtk * 1000)}ms`;
+  document.getElementById('detSlider').value = Math.round(gDetune);
+  document.getElementById('detVal').textContent = `${Math.round(gDetune)}¢`;
+  const cutSliderVal = Math.round(100 * Math.log(gCutoff / 200) / Math.log(100));
+  document.getElementById('cutSlider').value = cutSliderVal;
+  document.getElementById('cutVal').textContent = gCutoff >= 18000 ? 'open' : gCutoff >= 1000 ? `${(gCutoff/1000).toFixed(1)}k` : `${gCutoff}`;
+  const resSliderVal = Math.round(((gRes - 0.1) / 11.9) * 100);
+  document.getElementById('resSlider').value = resSliderVal;
+  document.getElementById('resVal').textContent = gRes.toFixed(1);
+  document.getElementById('dstSlider').value = Math.round(gDist * 100);
+  document.getElementById('dstVal').textContent = `${Math.round(gDist * 100)}%`;
+  document.getElementById('dlySlider').value = Math.round(gDelay * 100);
+  document.getElementById('dlyVal').textContent = `${Math.round(gDelay * 100)}%`;
+  document.getElementById('revSlider').value = Math.round(gReverb * 100);
+  document.getElementById('revVal').textContent = `${Math.round(gReverb * 100)}%`;
+  document.getElementById('fdbSlider').value = Math.round(gFeedback * 100);
+  document.getElementById('fdbVal').textContent = `${Math.round(gFeedback * 100)}%`;
+  const lpfSliderVal = Math.round(100 * Math.log(gLPF / 200) / Math.log(100));
+  document.getElementById('lpfSlider').value = lpfSliderVal;
+  document.getElementById('lpfVal').textContent = gLPF >= 20000 ? 'open' : gLPF >= 1000 ? `${(gLPF/1000).toFixed(1)}k` : `${gLPF}`;
+  document.getElementById('trmSlider').value = Math.round(gTremolo * 10);
+  document.getElementById('trmVal').textContent = gTremolo === 0 ? 'off' : `${gTremolo.toFixed(1)}Hz`;
+  if (audioCtx) {
+    const t = audioCtx.currentTime;
+    if (globalLPF) globalLPF.frequency.setTargetAtTime(gLPF, t, 0.01);
+    if (tremoloLFO) tremoloLFO.frequency.setTargetAtTime(gTremolo, t, 0.01);
+    if (tremoloDepthNode) tremoloDepthNode.gain.setTargetAtTime(gTremolo > 0 ? 0.18 : 0, t, 0.01);
+    if (delayFeedbackNode) delayFeedbackNode.gain.setTargetAtTime(gFeedback, t, 0.01);
+  }
+
+  // ── Bjorklund / Euclidean rhythm generator ────────────
+  function euclidean(steps, pulses) {
+    if (pulses <= 0) return new Array(steps).fill(0);
+    if (pulses >= steps) return new Array(steps).fill(1);
+    let pattern = [];
+    for (let i = 0; i < steps; i++) pattern.push(i < pulses ? [1] : [0]);
+    let level = 0, counts = [], remainders = [];
+    let divisor = steps - pulses;
+    remainders.push(pulses);
+    while (remainders[level] > 1) {
+      counts.push(Math.floor(divisor / remainders[level]));
+      const newR = divisor % remainders[level];
+      divisor = remainders[level];
+      remainders.push(newR);
+      level++;
+    }
+    counts.push(divisor);
+    function build(lvl) {
+      if (lvl === -1) return [[0]];
+      if (lvl === -2) return [[1]];
+      let seq = [];
+      for (let i = 0; i < counts[lvl]; i++) {
+        seq = seq.concat(build(lvl - 1));
+      }
+      if (remainders[lvl] > 0) seq = seq.concat(build(lvl - 2));
+      return seq;
+    }
+    const flat = build(level).flat();
+    return flat.length >= steps ? flat.slice(0, steps) : flat.concat(new Array(steps - flat.length).fill(0));
+  }
+
+  // ── Column density caps (max simultaneous voices) ─────
+  const colCount = new Array(COLS).fill(0);
+  const MAX_VOICES = 2 + (rng() * 3 | 0); // 2–4
+
+  // ── Per-note FX factory — varies by register ──────────
+  function noteFx(r) {
+    const t = r / 15; // 0 = top (high), 1 = bottom (bass)
     return {
-      wave:  WAVE_POOL[Math.floor(Math.random() * WAVE_POOL.length)],
-      vol:   soft ? 0.28 + Math.random() * 0.22 : 0.50 + Math.random() * 0.20,
-      decay: soft ? 0.55 + Math.random() * 0.65 : 0.18 + Math.random() * 0.28,
-      scale: chosenScale,
-      ...fxSnap(),
+      attack:     rngR(0.005, 0.005 + t * 0.14),
+      detune:     rngR(0, 3 + t * 5),
+      cutoff:     Math.round(rngR(3000 + (1 - t) * 8000, 6000 + (1 - t) * 12000)),
+      resonance:  rngR(0.5, 2.0 + (1 - t) * 2),
+      distortion: gDist,
+      delaySend:  rng() < 0.18 ? rngR(0.05, 0.18) : gDelay,
+      reverbSend: rngR(0.12 + (1 - t) * 0.1, 0.30 + (1 - t) * 0.2),
     };
   }
 
-  // Narrow melodic band (2–3 rows, mid-range)
-  const bandCenter = 4 + Math.floor(Math.random() * 7);
-  const bandWidth  = 2 + Math.floor(Math.random() * 2);
-  const lo = Math.max(0, bandCenter - Math.floor(bandWidth / 2));
-  const hi = Math.min(ROWS - 1, lo + bandWidth);
-  const anchorRow = lo + Math.floor((hi - lo + 1) / 2);
+  // ── Choose a structural strategy ──────────────────────
+  const strategy = pick(['euclidean', 'euclidean', 'anchor-scatter', 'polyrhythm']);
 
-  // Anchor notes on strong beats for rhythmic grounding
-  if (Math.random() < 0.78)
-    S.cells[anchorRow][0] = { wave: 'sine', vol: 0.38 + Math.random() * 0.15, decay: 0.85 + Math.random() * 0.6,  scale: chosenScale, ...fxSnap() };
-  if (Math.random() < 0.55)
-    S.cells[anchorRow][8] = { wave: 'sine', vol: 0.32 + Math.random() * 0.12, decay: 0.75 + Math.random() * 0.5,  scale: chosenScale, ...fxSnap() };
+  // anchor columns — rhythmic backbone
+  const anchorSets = [[0,4,8,12], [0,6,12], [0,4,10], [0,8], [0,3,6,9,12]];
+  const anchors = new Set(pick(anchorSets));
 
-  // Sparse melodic scatter
-  for (let r = lo; r <= hi; r++) {
+  if (strategy === 'euclidean') {
+    // 2–4 melodic voices on euclidean rhythms
+    const nVoices = 2 + (rng() * 3 | 0);
+    const usedRows = new Set();
+    for (let v = 0; v < nVoices; v++) {
+      let r;
+      do { r = Math.random() * ROWS | 0; } while (usedRows.has(r));
+      usedRows.add(r);
+      const t = r / 15;
+      const density = r >= 12 ? (1 + (rng() * 3 | 0)) : (2 + (rng() * 5 | 0));
+      const rhythm = euclidean(COLS, density);
+      const rotation = Math.random() * COLS | 0;
+      for (let c = 0; c < COLS; c++) {
+        if (!rhythm[(c + rotation) % COLS]) continue;
+        if (colCount[c] >= MAX_VOICES) continue;
+        const vol = r >= 12 ? rngR(0.35, 0.55) : r >= 5 ? rngR(0.25, 0.50) : rngR(0.15, 0.38);
+        const decay = r >= 12 ? rngR(0.5, 1.2) : r >= 5 ? rngR(0.3, 0.7) : rngR(0.15, 0.45);
+        S.cells[r][c] = { wave: waveFor(r), vol, decay, scale: chosenScale, ...noteFx(r) };
+        colCount[c]++;
+      }
+    }
+  } else if (strategy === 'anchor-scatter') {
+    // anchor row with strong beats, scatter above
+    const anchorRow = 8 + (rng() * 6 | 0);
+    for (const c of anchors) {
+      if (rng() < 0.82) {
+        S.cells[anchorRow][c] = {
+          wave: 'sine', vol: rngR(0.35, 0.55), decay: rngR(0.6, 1.2),
+          scale: chosenScale, ...noteFx(anchorRow),
+        };
+        colCount[c]++;
+      }
+    }
+    // scattered melody in upper rows
+    const nScatter = 4 + (rng() * 10 | 0);
+    for (let i = 0; i < nScatter; i++) {
+      const r = rng() * 12 | 0;
+      const c = rng() * COLS | 0;
+      if (S.cells[r][c] || colCount[c] >= MAX_VOICES) continue;
+      const prob = anchors.has(c) ? 0.75 : 0.45;
+      if (rng() > prob) continue;
+      S.cells[r][c] = {
+        wave: waveFor(r), vol: rngR(0.18, 0.42), decay: rngR(0.2, 0.55),
+        scale: chosenScale, ...noteFx(r),
+      };
+      colCount[c]++;
+    }
+  } else {
+    // polyrhythm: 2–3 rows with coprime pulse counts
+    const primes = [3, 5, 7, 11];
+    const nLayers = 2 + (rng() < 0.4 ? 1 : 0);
+    const usedRows = new Set();
+    for (let l = 0; l < nLayers; l++) {
+      let r;
+      do { r = 2 + (rng() * 12 | 0); } while (usedRows.has(r));
+      usedRows.add(r);
+      const pulses = pick(primes);
+      const rhythm = euclidean(COLS, Math.min(pulses, COLS));
+      const rotation = rng() * COLS | 0;
+      for (let c = 0; c < COLS; c++) {
+        if (!rhythm[(c + rotation) % COLS]) continue;
+        if (colCount[c] >= MAX_VOICES) continue;
+        S.cells[r][c] = {
+          wave: waveFor(r), vol: rngR(0.22, 0.45), decay: rngR(0.25, 0.65),
+          scale: chosenScale, ...noteFx(r),
+        };
+        colCount[c]++;
+      }
+    }
+  }
+
+  // ── Optional bass drone (bottom 3 rows) ───────────────
+  if (rng() < 0.6) {
+    const bassRow = 13 + (rng() * 3 | 0);
+    const bassPulses = pick([1, 2, 2, 3, 4]);
+    const bassRhythm = euclidean(COLS, bassPulses);
     for (let c = 0; c < COLS; c++) {
-      if (S.cells[r][c]) continue;
-      if (Math.random() < (beats.has(c) ? 0.22 : 0.07)) S.cells[r][c] = rndNote(0.7);
+      if (!bassRhythm[c] || colCount[c] >= MAX_VOICES) continue;
+      S.cells[bassRow][c] = {
+        wave: pick(['sine','sine','triangle']),
+        vol: rngR(0.25, 0.48), decay: rngR(0.7, 1.5),
+        scale: chosenScale, ...noteFx(bassRow),
+      };
+      colCount[c]++;
     }
   }
 
-  // Optional low bass drone — a few sine notes at the bottom rows
-  if (Math.random() < 0.55) {
-    const bassRow = 13 + Math.floor(Math.random() * 3);
-    for (const c of beats) {
-      if (Math.random() < 0.45)
-        S.cells[bassRow][c] = { wave: 'sine', vol: 0.22 + Math.random() * 0.12, decay: 1.0 + Math.random() * 0.8, scale: chosenScale, ...fxSnap() };
+  // ── Optional ghost layer — very quiet scattered high notes ──
+  if (rng() < 0.45) {
+    const ghostN = 2 + (rng() * 5 | 0);
+    for (let i = 0; i < ghostN; i++) {
+      const r = rng() * 5 | 0;
+      const c = rng() * COLS | 0;
+      if (S.cells[r][c] || colCount[c] >= MAX_VOICES) continue;
+      S.cells[r][c] = {
+        wave: 'sine', vol: rngR(0.08, 0.20), decay: rngR(0.3, 0.6),
+        scale: chosenScale, ...noteFx(r),
+      };
     }
   }
+
   renderAll();
 });
 document.addEventListener('keydown', e => {
