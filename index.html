@@ -6,7 +6,7 @@
   <title>IG01</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=block" rel="stylesheet">
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     :focus { outline: none; }
@@ -69,7 +69,7 @@
     .hdr-left {
       color: rgba(255,255,255,0.45);
     }
-    #selLabel { margin-left: 12px; }
+    #selLabel { display: none; }
     /* ── Color legend ─────────────────────────────────── */
     #legend {
       display: flex;
@@ -107,6 +107,19 @@
       background: #000;
       border: 1px solid #111;
       border-radius: 4px;
+      position: relative;
+    }
+    .sel-lbl {
+      position: absolute;
+      font-family: 'Share Tech Mono', monospace;
+      font-size: 14px;
+      letter-spacing: 0.05em;
+      color: rgba(255,255,255,0.55);
+      text-shadow: 0 0 6px rgba(255,255,255,0.35);
+      pointer-events: none;
+      z-index: 10;
+      white-space: nowrap;
+      line-height: 1;
     }
     .cell {
       border-radius: 2px;
@@ -483,14 +496,14 @@
   <div class="hdr">
     <div class="hdr-left"><div id="pageBar"></div><span id="selLabel"></span></div>
     <div class="hdr-mid">
-      <button class="btn-play" id="playBtn" tabindex="-1">play(space)</button>
-      <span class="hdr-lbl" style="margin-left:6px;">bpm</span>
+      <span class="hdr-lbl">bpm</span>
       <span class="s-brk">◄</span>
       <input type="range" id="bpmSlider" min="40" max="240" value="120" step="1">
       <span class="s-brk">►</span>
       <span class="ctrl-val" id="bpmVal">120</span>
+      <button class="btn-play" id="playBtn" tabindex="-1" style="margin-left:6px;">play</button>
     </div>
-    <div id="legend"></div>
+    <a id="zko" href="https://zko.io" target="_blank" rel="noopener"></a>
   </div>
 
   <div class="main-layout">
@@ -689,7 +702,7 @@
 
       <div class="panel-rule"></div>
       <div class="footer">
-        <a id="zko" href="https://zko.io" target="_blank" rel="noopener">░▒▓░</a>
+        <div id="legend"></div>
         <button id="hbtn" tabindex="-1">help(h)</button>
       </div>
 
@@ -755,6 +768,7 @@ function setAccent(col) {
   const CHARS = '.,:;+*#@0123456789';
   const rc    = () => CHARS[Math.random() * CHARS.length | 0];
   const el    = document.getElementById('zko');
+  if (el) el.textContent = rc()+rc()+rc()+rc();
   setInterval(() => { if (el) el.textContent = rc()+rc()+rc()+rc(); }, 140);
 })();
 
@@ -1173,8 +1187,58 @@ function clearSel() {
 }
 
 function updateSelLabel() {
-  document.getElementById('selLabel').textContent =
-    selR < 0 ? '' : `r${selR + 1} · c${selC + 1}`;
+  // remove old overlays
+  document.querySelectorAll('.sel-lbl').forEach(el => el.remove());
+  if (selR < 0) return;
+
+  const gridEl = document.getElementById('grid');
+  const cellPx = parseFloat(getComputedStyle(gridEl).getPropertyValue('--cell')) || 38;
+  const GAP = 3, PAD = 4;
+  // top-left corner of cell (r,c) relative to grid element (inside border)
+  function cellOrigin(r, c) {
+    return {
+      x: PAD + c * (cellPx + GAP),
+      y: PAD + r * (cellPx + GAP),
+    };
+  }
+
+  const cells = S.cells;
+
+  // center of cell (r,c) relative to grid element
+  function cellCenter(r, c) {
+    return {
+      x: PAD + c * (cellPx + GAP) + cellPx / 2,
+      y: PAD + r * (cellPx + GAP) + cellPx / 2,
+    };
+  }
+
+  const selCenter = cellCenter(selR, selC);
+
+  // ── row label: centered in adjacent left or right cell ───
+  const rowLbl = document.createElement('span');
+  rowLbl.className = 'sel-lbl';
+  rowLbl.textContent = `${selR + 1}`;
+  const useLeft = selC > 0 && !cells[selR][selC - 1];
+  const rowNeighborCenter = useLeft
+    ? cellCenter(selR, selC - 1)
+    : cellCenter(selR, selC + 1);
+  rowLbl.style.left = `${rowNeighborCenter.x}px`;
+  rowLbl.style.top  = `${rowNeighborCenter.y}px`;
+  rowLbl.style.transform = 'translate(-50%, -50%)';
+  gridEl.appendChild(rowLbl);
+
+  // ── col label: centered in adjacent above or below cell ──
+  const colLbl = document.createElement('span');
+  colLbl.className = 'sel-lbl';
+  colLbl.textContent = `${selC + 1}`;
+  const useTop = selR > 0 && !cells[selR - 1][selC];
+  const colNeighborCenter = useTop
+    ? cellCenter(selR - 1, selC)
+    : cellCenter(selR + 1, selC);
+  colLbl.style.left = `${colNeighborCenter.x}px`;
+  colLbl.style.top  = `${colNeighborCenter.y}px`;
+  colLbl.style.transform = 'translate(-50%, -50%)';
+  gridEl.appendChild(colLbl);
 }
 
 function reflectNote(note) {
@@ -1325,7 +1389,7 @@ function startSeq() {
   S.playing = true;
   nextIdx = 0; nextWhen = audioCtx.currentTime + 0.06;
   tick();
-  playBtn.textContent = 'stop(space)';
+  playBtn.textContent = 'stop';
   playBtn.classList.add('playing');
 }
 
@@ -1333,7 +1397,7 @@ function stopSeq() {
   S.playing = false;
   clearTimeout(seqTimer);
   S.step = -1; renderAll();
-  playBtn.textContent = 'play(space)';
+  playBtn.textContent = 'play';
   playBtn.classList.remove('playing');
 }
 
