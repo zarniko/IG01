@@ -2445,16 +2445,64 @@ document.getElementById('saveBtn').addEventListener('click', () => {
   const a    = document.createElement('a');
   a.href = url;
   a.download = `ig01_${Date.now()}.json`;
+  document.body.appendChild(a);
   a.click();
+  document.body.removeChild(a);
   URL.revokeObjectURL(url);
+
+  // iOS Safari ignores the download attribute and opens the blob in-tab.
+  // Detect this by checking if the click likely did nothing (no download support)
+  // and fall back to opening a copyable overlay with the raw JSON.
+  const isIOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    const ov = document.createElement('div');
+    Object.assign(ov.style, {
+      position:'fixed', inset:'0', zIndex:'99999', background:'rgba(0,0,0,0.94)',
+      display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+      padding:'24px', boxSizing:'border-box',
+    });
+    const msg = document.createElement('div');
+    msg.textContent = 'copy and save this text to a .json file';
+    Object.assign(msg.style, {
+      fontFamily:"'Share Tech Mono',monospace", fontSize:'12px', letterSpacing:'2px',
+      color:'rgba(255,255,255,0.55)', marginBottom:'12px', textAlign:'center',
+    });
+    const ta = document.createElement('textarea');
+    ta.value = json;
+    ta.readOnly = true;
+    Object.assign(ta.style, {
+      width:'100%', flex:'1', maxHeight:'60vh', background:'#0a0a0a',
+      border:'1px solid #333', color:'rgba(255,255,255,0.75)', padding:'10px',
+      fontFamily:"'Share Tech Mono',monospace", fontSize:'11px', letterSpacing:'1px',
+      resize:'none', outline:'none', borderRadius:'2px',
+    });
+    const close = document.createElement('button');
+    close.textContent = 'close';
+    Object.assign(close.style, {
+      marginTop:'14px', background:'none', border:'none',
+      fontFamily:"'Share Tech Mono',monospace", fontSize:'14px',
+      letterSpacing:'2px', color:'rgba(255,255,255,0.55)', cursor:'pointer',
+    });
+    close.addEventListener('click', () => ov.remove());
+    ov.appendChild(msg); ov.appendChild(ta); ov.appendChild(close);
+    document.body.appendChild(ov);
+    // auto-select text so user can copy immediately
+    setTimeout(() => { ta.focus(); ta.select(); }, 100);
+  }
 });
 
 // ── Load from file ───────────────────────────────────
 document.getElementById('loadBtn').addEventListener('click', () => {
   const input = document.createElement('input');
   input.type = 'file'; input.accept = '.json';
+  // Must be in the DOM before .click() for iOS Safari to open the picker
+  input.style.cssText = 'position:fixed;top:-999px;left:-999px;opacity:0;';
+  document.body.appendChild(input);
   input.onchange = e => {
-    const file = e.target.files[0]; if (!file) return;
+    const file = e.target.files[0];
+    document.body.removeChild(input);
+    if (!file) return;
     const reader = new FileReader();
     reader.onload = ev => {
       try { restoreState(JSON.parse(ev.target.result)); }
@@ -2471,14 +2519,26 @@ document.getElementById('shareBtn').addEventListener('click', async () => {
   try {
     const encoded = await compress(JSON.stringify(serializeState()));
     const url = `${location.origin}${location.pathname}#${encoded}`;
-    await navigator.clipboard.writeText(url);
-    btn.textContent = 'copied!';
-    btn.style.color = lineColor;
-    setTimeout(() => { btn.textContent = 'share'; btn.style.color = ''; }, 1800);
+    // Try Clipboard API first (requires secure context / HTTPS)
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(url);
+      btn.textContent = 'copied!';
+      btn.style.color = lineColor;
+      setTimeout(() => { btn.textContent = 'share'; btn.style.color = ''; }, 1800);
+    } else {
+      // Fallback for local file:// or browsers without clipboard API
+      prompt('copy this url to share your session:', url);
+      btn.textContent = 'share';
+    }
   } catch(err) {
-    console.error('Share failed', err);
-    btn.textContent = 'error';
-    setTimeout(() => { btn.textContent = 'share'; }, 1800);
+    // Clipboard write blocked (e.g. file:// on mobile) — show prompt fallback
+    try {
+      const encoded = await compress(JSON.stringify(serializeState()));
+      const url = `${location.origin}${location.pathname}#${encoded}`;
+      prompt('copy this url to share your session:', url);
+    } catch(e) { console.error('Share failed', e); }
+    btn.textContent = 'share';
+    btn.style.color = '';
   }
 });
 
