@@ -248,7 +248,7 @@
     #viz-cv {
       flex: 1;
       width: 100%;
-      min-height: 100px;
+      min-height: 60px;
       display: block;
       cursor: pointer;
     }
@@ -700,6 +700,14 @@
         </div>
       </div>
 
+      <div id="session-area">
+        <div class="panel-rule"></div>
+        <div class="ctrl-row" style="gap:14px; letter-spacing:2px;">
+          <button class="tui-btn" id="saveBtn" tabindex="-1">save</button>
+          <button class="tui-btn" id="loadBtn" tabindex="-1">load</button>
+          <button class="tui-btn" id="shareBtn" tabindex="-1">share</button>
+        </div>
+      </div>
       <div class="panel-rule"></div>
       <div class="footer">
         <div id="legend"></div>
@@ -2164,6 +2172,7 @@ function openShiftPanel() {
   if (shiftActive) return;
   shiftActive = true;
   document.getElementById('viz-cv').style.display = 'none';
+  document.getElementById('session-area').style.display = 'none';
   document.getElementById('wave-panel').style.display = 'flex';
   const hint = document.getElementById('shift-hint');
   hint.textContent = 'fx(shift)';
@@ -2176,6 +2185,7 @@ function closeShiftPanel() {
   shiftActive = false;
   shiftLocked  = false;
   document.getElementById('viz-cv').style.display = '';
+  document.getElementById('session-area').style.display = '';
   document.getElementById('wave-panel').style.display = 'none';
   const hint = document.getElementById('shift-hint');
   hint.textContent = 'fx(shift)';
@@ -2304,12 +2314,193 @@ document.getElementById('fxResetBtn').addEventListener('click', () => {
   }
 });
 
+/* ── Session save / load / share ────────────────────── */
+function serializeState() {
+  return {
+    version: 1,
+    pages:   S.pages.map(pg => pg.map(row => row.map(n => n ? {...n} : null))),
+    page:    S.page,
+    bpm:     S.bpm,
+    scale:   S.scale,
+    wave:    S.wave,
+    volume:  S.volume,
+    decay:   S.decay,
+    fx:      {...FX},
+    accent:  lineColor,
+  };
+}
+
+function syncSlidersFromFX() {
+  const f = FX;
+  document.getElementById('atkSlider').value = Math.round(f.attack * 1000);
+  document.getElementById('atkVal').textContent = `${Math.round(f.attack * 1000)}ms`;
+  document.getElementById('detSlider').value = Math.round(f.detune);
+  document.getElementById('detVal').textContent = `${Math.round(f.detune)}¢`;
+  const cutSl = Math.round(Math.log(Math.max(f.cutoff, 201) / 200) / Math.log(100) * 100);
+  document.getElementById('cutSlider').value = cutSl;
+  document.getElementById('cutVal').textContent = f.cutoff >= 18000 ? 'open' : f.cutoff >= 1000 ? `${(f.cutoff/1000).toFixed(1)}k` : `${Math.round(f.cutoff)}`;
+  document.getElementById('resSlider').value = Math.round((f.resonance - 0.1) / 11.9 * 100);
+  document.getElementById('resVal').textContent = f.resonance.toFixed(1);
+  document.getElementById('dstSlider').value = Math.round(f.distortion * 100);
+  document.getElementById('dstVal').textContent = `${Math.round(f.distortion * 100)}%`;
+  document.getElementById('dlySlider').value = Math.round(f.delaySend * 100);
+  document.getElementById('dlyVal').textContent = `${Math.round(f.delaySend * 100)}%`;
+  document.getElementById('revSlider').value = Math.round(f.reverbSend * 100);
+  document.getElementById('revVal').textContent = `${Math.round(f.reverbSend * 100)}%`;
+  document.getElementById('rvlSlider').value = Math.round(f.reverbLevel * 100);
+  document.getElementById('rvlVal').textContent = `${Math.round(f.reverbLevel * 100)}%`;
+  const hpfSl = Math.round(Math.log(Math.max(f.hpfCutoff, 21) / 20) / Math.log(100) * 100);
+  document.getElementById('hpfSlider').value = hpfSl;
+  document.getElementById('hpfVal').textContent = f.hpfCutoff <= 20 ? 'open' : f.hpfCutoff >= 1000 ? `${(f.hpfCutoff/1000).toFixed(1)}k` : `${f.hpfCutoff}`;
+  const lpfSl = Math.round(Math.log(Math.max(f.lpfCutoff, 201) / 200) / Math.log(100) * 100);
+  document.getElementById('lpfSlider').value = lpfSl;
+  document.getElementById('lpfVal').textContent = f.lpfCutoff >= 20000 ? 'open' : f.lpfCutoff >= 1000 ? `${(f.lpfCutoff/1000).toFixed(1)}k` : `${f.lpfCutoff}`;
+  const trm = f.tremolo ?? 0;
+  document.getElementById('trmSlider').value = Math.round(trm * 10);
+  document.getElementById('trmVal').textContent = trm === 0 ? 'off' : `${trm.toFixed(1)}Hz`;
+  document.getElementById('fdbSlider').value = Math.round(f.delayFeedback * 100);
+  document.getElementById('fdbVal').textContent = `${Math.round(f.delayFeedback * 100)}%`;
+}
+
+function restoreState(data) {
+  if (!data || data.version !== 1) return;
+
+  S.pages = data.pages.map(pg => pg.map(row => row.map(n => n ? {...n} : null)));
+  S.bpm    = data.bpm    ?? 120;
+  S.scale  = data.scale  ?? 'major_pentatonic';
+  S.wave   = data.wave   ?? 'sine';
+  S.volume = data.volume ?? 0.70;
+  S.decay  = data.decay  ?? 0.40;
+  Object.assign(FX, data.fx ?? {});
+  if (data.accent) setAccent(data.accent);
+
+  // sync main sliders
+  document.getElementById('bpmSlider').value = S.bpm;
+  document.getElementById('bpmVal').textContent = S.bpm;
+  document.getElementById('volSlider').value = Math.round(S.volume * 100);
+  document.getElementById('volVal').textContent = `${Math.round(S.volume * 100)}%`;
+  document.getElementById('decaySlider').value = Math.round(S.decay * 100);
+  document.getElementById('decayVal').textContent = `${S.decay.toFixed(2)}s`;
+  document.getElementById('scaleSelect').value = S.scale;
+  document.querySelectorAll('#waveGroup .tui-btn').forEach(b =>
+    b.classList.toggle('sel', b.dataset.wave === S.wave));
+
+  // sync fx sliders
+  syncSlidersFromFX();
+
+  // sync audio nodes if running
+  if (audioCtx) {
+    const t = audioCtx.currentTime;
+    if (reverbOutGain)    reverbOutGain.gain.setTargetAtTime(FX.reverbLevel, t, 0.01);
+    if (globalHPF)        globalHPF.frequency.setTargetAtTime(FX.hpfCutoff, t, 0.01);
+    if (globalLPF)        globalLPF.frequency.setTargetAtTime(FX.lpfCutoff, t, 0.01);
+    if (tremoloLFO)       tremoloLFO.frequency.setTargetAtTime(FX.tremolo ?? 0, t, 0.01);
+    if (tremoloDepthNode) tremoloDepthNode.gain.setTargetAtTime((FX.tremolo ?? 0) > 0 ? 0.18 : 0, t, 0.01);
+    if (delayFeedbackNode) delayFeedbackNode.gain.setTargetAtTime(FX.delayFeedback, t, 0.01);
+  }
+
+  // switch page
+  const targetPage = data.page ?? 0;
+  S.page = targetPage;
+  pageBtns.forEach((btn, i) => btn.classList.toggle('active', i === targetPage));
+
+  clearSel();
+  renderAll();
+}
+
+// ── Compression helpers (native CompressionStream) ──
+async function compress(str) {
+  const enc = new TextEncoder().encode(str);
+  const cs  = new CompressionStream('deflate-raw');
+  const w   = cs.writable.getWriter();
+  w.write(enc); w.close();
+  const chunks = []; const r = cs.readable.getReader();
+  while (true) { const {done, value} = await r.read(); if (done) break; chunks.push(value); }
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let off = 0; for (const c of chunks) { out.set(c, off); off += c.length; }
+  let bin = ''; for (let i = 0; i < out.length; i++) bin += String.fromCharCode(out[i]);
+  return btoa(bin).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+async function decompress(b64) {
+  const pad = b64.replace(/-/g,'+').replace(/_/g,'/');
+  const bin = atob(pad + '==='.slice((pad.length + 3) % 4 || 4));
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const ds = new DecompressionStream('deflate-raw');
+  const w  = ds.writable.getWriter();
+  w.write(bytes); w.close();
+  const chunks = []; const r = ds.readable.getReader();
+  while (true) { const {done, value} = await r.read(); if (done) break; chunks.push(value); }
+  const out = new Uint8Array(chunks.reduce((n, c) => n + c.length, 0));
+  let off = 0; for (const c of chunks) { out.set(c, off); off += c.length; }
+  return new TextDecoder().decode(out);
+}
+
+// ── Save to file ─────────────────────────────────────
+document.getElementById('saveBtn').addEventListener('click', () => {
+  const json = JSON.stringify(serializeState());
+  const blob = new Blob([json], {type: 'application/json'});
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href = url;
+  a.download = `ig01_${Date.now()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+// ── Load from file ───────────────────────────────────
+document.getElementById('loadBtn').addEventListener('click', () => {
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0]; if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try { restoreState(JSON.parse(ev.target.result)); }
+      catch(err) { console.error('Session load failed', err); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+});
+
+// ── Share via URL hash ───────────────────────────────
+document.getElementById('shareBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('shareBtn');
+  try {
+    const encoded = await compress(JSON.stringify(serializeState()));
+    const url = `${location.origin}${location.pathname}#${encoded}`;
+    await navigator.clipboard.writeText(url);
+    btn.textContent = 'copied!';
+    btn.style.color = lineColor;
+    setTimeout(() => { btn.textContent = 'share'; btn.style.color = ''; }, 1800);
+  } catch(err) {
+    console.error('Share failed', err);
+    btn.textContent = 'error';
+    setTimeout(() => { btn.textContent = 'share'; }, 1800);
+  }
+});
+
 /* ── Init ───────────────────────────────────────────── */
 buildPageBar();
 buildStepBar();
 buildRowBar();
 buildGrid();
 updateSelLabel();
+
+// Restore from URL hash — runs after DOM is fully built
+(async () => {
+  const hash = location.hash.slice(1);
+  if (!hash) return;
+  try {
+    const json = await decompress(hash);
+    restoreState(JSON.parse(json));
+    history.replaceState(null, '', location.pathname);
+  } catch(err) {
+    console.error('URL session restore failed', err);
+  }
+})();
 </script>
 </body>
 </html>
