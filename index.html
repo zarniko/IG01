@@ -1472,9 +1472,12 @@ function buildLfoPanels() {
     const panel = document.createElement('div');
     panel.className = 'lfo-panel';
     panel.id = `lfo-panel-${param}`;
-    const CV_H = window.innerWidth <= 580 ? 90 : 68, T_MAX = 2.0, PAD = 10;
-    const DH = CV_H - PAD * 2;
-    const dpr = window.devicePixelRatio || 1;
+    const isMobile = window.matchMedia('(hover: none)').matches;
+    const hr   = isMobile ? 11 : 4.5;
+    const CV_H = Math.round(68 * hr / 4.5), T_MAX = 2.0, PAD = 10;
+    const DH   = CV_H - PAD * 2;
+    const hitR = hr + 6;
+    const dpr  = window.devicePixelRatio || 1;
     panel.innerHTML = `<canvas id="adsr-cv" style="display:block;width:100%;height:${CV_H}px;cursor:crosshair;"></canvas>`;
     row.insertAdjacentElement('afterend', panel);
     const cv = document.getElementById('adsr-cv');
@@ -1538,7 +1541,6 @@ function buildLfoPanels() {
 
       // handles
       ctx.fillStyle = accent;
-      const hr = 4.5;
       [1, 2, 3, 4].forEach(i => {
         ctx.beginPath(); ctx.arc(p[i][0], p[i][1], hr, 0, Math.PI * 2); ctx.fill();
       });
@@ -1554,7 +1556,7 @@ function buildLfoPanels() {
       const dw = cv.offsetWidth - PAD * 2;
       const p = toPoints(currentAdsr(), dw);
       for (const i of [1, 2, 3, 4]) {
-        if (Math.abs(mx - p[i][0]) <= 10 && Math.abs(my - p[i][1]) <= 10) return i;
+        if (Math.abs(mx - p[i][0]) <= hitR && Math.abs(my - p[i][1]) <= hitR) return i;
       }
       return null;
     }
