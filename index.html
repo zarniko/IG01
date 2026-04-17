@@ -488,7 +488,7 @@
       color: rgba(255,255,255,0.25); font-size: 10px;
       pointer-events: none; letter-spacing: 0;
     }
-    #scaleSelect {
+    #scaleSelect, #moodSelect {
       -webkit-appearance: none; appearance: none;
       width: 100%; padding-right: 12px;
       background: none; border: none;
@@ -498,8 +498,8 @@
       font-size: 14px; letter-spacing: 2px;
       cursor: pointer; outline: none;
     }
-    #scaleSelect:focus { color: var(--accent); border-bottom-color: var(--accent); }
-    #scaleSelect option { background: #000; color: #fff; letter-spacing: 1px; }
+    #scaleSelect:focus, #moodSelect:focus { color: var(--accent); border-bottom-color: var(--accent); }
+    #scaleSelect option, #moodSelect option { background: #000; color: #fff; letter-spacing: 1px; }
 
     /* wave panel (shift mode) */
     #wave-panel {
@@ -527,6 +527,7 @@
       vertical-align: middle;
     }
     .lfo-toggle.open .lfo-chev { transform: rotate(90deg); }
+    #fx-panel-1.tab-a-disabled { opacity: 0.35; pointer-events: none; }
     .lfo-panel {
       display: none; flex-direction: column;
       gap: 3px;
@@ -585,9 +586,23 @@
 
     <div class="ctrl-panel">
 
-      <div class="ctrl-row">
-        <button class="tui-btn" id="randBtn" tabindex="-1">random(r)</button>
-        <button class="tui-btn" id="clearBtn" tabindex="-1">clear(c)</button>
+      <div class="ctrl-row slider">
+        <button class="tui-btn" id="randBtn" tabindex="-1" style="flex-shrink:0; padding-right:4px;">rnd</button>
+        <button class="tui-btn" id="randRefresh" tabindex="-1" style="flex-shrink:0;">create</button>
+        <div class="scale-wrap">
+          <select id="moodSelect">
+            <option value="auto" selected>auto</option>
+            <option value="ambient">ambient</option>
+            <option value="rhythmic">rhythmic</option>
+            <option value="dark">dark</option>
+            <option value="bright">bright</option>
+            <option value="movement">movement</option>
+          </select>
+        </div>
+      </div>
+      <div class="ctrl-row slider">
+        <button class="tui-btn" id="clearBtn" tabindex="-1" style="flex-shrink:0; padding-right:4px;">clr</button>
+        <button class="tui-btn" id="clearRefresh" tabindex="-1" style="flex-shrink:0;">clear-grid</button>
       </div>
 
       <div class="panel-rule"></div>
@@ -676,8 +691,8 @@
         <div class="panel-rule" style="margin-bottom:2px;"></div>
 
         <!-- Tab 1: per-note controls -->
-        <div id="fx-panel-1" style="display:flex; flex-direction:column; gap:2px;">
-          <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">per note</div>
+        <div id="fx-panel-1" class="tab-a-disabled" style="display:flex; flex-direction:column; gap:2px;">
+          <div id="fx-panel-1-lbl" style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">per note</div>
           <div class="ctrl-row slider" data-lfo="atk">
             <span class="ctrl-key lfo-toggle" id="lfo-lbl-atk" data-param="atk">atk<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
@@ -793,7 +808,7 @@
       <div class="panel-rule"></div>
       <div class="footer">
         <div id="legend"></div>
-        <button id="hbtn" tabindex="-1">help(h)</button>
+        <button id="hbtn" tabindex="-1">help</button>
       </div>
 
     </div><!-- /ctrl-panel -->
@@ -1287,6 +1302,7 @@ function selectNote(r, c) {
     if (note) reflectNote(note);
   }
   updateSelLabel();
+  document.getElementById('fx-panel-1').classList.toggle('tab-a-disabled', !(r >= 0 && S.cells[r]?.[c]));
 }
 
 function clearSel() {
@@ -1294,6 +1310,8 @@ function clearSel() {
   selR = -1; selC = -1;
   updateSelLabel();
   EXPAND_PARAMS.forEach(p => updateLfoActive(p));
+  document.getElementById('lfo-panel-atk')?._draw?.();
+  document.getElementById('fx-panel-1').classList.add('tab-a-disabled');
 }
 
 function updateSelLabel() {
@@ -1436,8 +1454,6 @@ function buildLfoPanels() {
     document.getElementById(`lfo-${param}-rate`).addEventListener('input', function () {
       const rate = this.value / 10;
       document.getElementById(`lfo-${param}-rate-val`).textContent = rate === 0 ? 'off' : `${rate.toFixed(1)}Hz`;
-      if (!FX.lfo[param]) FX.lfo[param] = { rate: 0, depth: 0, shape: 'sine' };
-      FX.lfo[param].rate = rate;
       const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
       if (note) { ensureNoteLfo(note); if (!note.lfo[param]) note.lfo[param] = { rate: 0, depth: 0, shape: 'sine' }; note.lfo[param].rate = rate; }
       updateLfoActive(param);
@@ -1445,8 +1461,6 @@ function buildLfoPanels() {
     document.getElementById(`lfo-${param}-depth`).addEventListener('input', function () {
       const depth = this.value / 100;
       document.getElementById(`lfo-${param}-depth-val`).textContent = `${this.value}%`;
-      if (!FX.lfo[param]) FX.lfo[param] = { rate: 0, depth: 0, shape: 'sine' };
-      FX.lfo[param].depth = depth;
       const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
       if (note) { ensureNoteLfo(note); if (!note.lfo[param]) note.lfo[param] = { rate: 0, depth: 0, shape: 'sine' }; note.lfo[param].depth = depth; }
       updateLfoActive(param);
@@ -1456,8 +1470,6 @@ function buildLfoPanels() {
         panel.querySelectorAll('.lfo-shape').forEach(b => b.classList.remove('sel'));
         btn.classList.add('sel');
         const shape = btn.dataset.shape;
-        if (!FX.lfo[param]) FX.lfo[param] = { rate: 0, depth: 0, shape: 'sine' };
-        FX.lfo[param].shape = shape;
         const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
         if (note) { ensureNoteLfo(note); if (!note.lfo[param]) note.lfo[param] = { rate: 0, depth: 0, shape: 'sine' }; note.lfo[param].shape = shape; }
       });
@@ -1488,7 +1500,6 @@ function buildLfoPanels() {
       return note?.adsr ? { ...note.adsr } : FX.adsr ? { ...FX.adsr } : { ...DFLT_ADSR };
     }
     function saveAdsr(adsr) {
-      FX.adsr = { ...adsr };
       const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
       if (note) note.adsr = { ...adsr };
       updateLfoActive(param);
@@ -1625,7 +1636,6 @@ function buildLfoPanels() {
         panel.querySelectorAll('.dst-shape').forEach(b => b.classList.remove('sel'));
         btn.classList.add('sel');
         const shape = btn.dataset.shape;
-        FX.dstShape = shape;
         const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
         if (note) note.dstShape = shape;
         updateLfoActive(param);
@@ -1660,7 +1670,6 @@ function buildLfoPanels() {
         panel.querySelectorAll('.rtc-btn').forEach(b => b.classList.remove('sel'));
         btn.classList.add('sel');
         const ratchet = +btn.dataset.ratchet;
-        FX.ratchet = ratchet;
         const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
         if (note) note.ratchet = ratchet;
         updateLfoActive(param);
@@ -1864,7 +1873,7 @@ function tick() {
     for (let r = 0; r < ROWS; r++) {
       if (mutedRows.has(r)) continue;
       const note = S.cells[r][step];
-      if (note && Math.random() < (note.prob ?? 1.0)) {
+      if (note && Math.random() < (note.prob ?? FX.prob ?? 1.0)) {
         const ratchet = note.ratchet ?? FX.ratchet ?? 1;
         const sd = stepDur();
         for (let ri = 0; ri < ratchet; ri++) playTone(freqFor(note.scale, r), note, when + ri * sd / ratchet);
@@ -2155,6 +2164,87 @@ document.getElementById('clearBtn').addEventListener('click', () => {
   for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
   clearSel(); renderAll();
 });
+document.getElementById('clearRefresh').addEventListener('click', () => document.getElementById('clearBtn').click());
+const MOOD_PROFILES = {
+  ambient: {
+    scales: ['major_pentatonic','hawaiian','hawaiian','japanese_miyakobushi','whole_tone','balinese_pelog','aeolian'],
+    bpmRange: [58, 80],
+    strategies: ['euclidean','anchor-scatter','anchor-scatter'],
+    atkRange: [0.04, 0.22], cutoffRange: [2400, 8000],
+    delayRange: [0.18, 0.38], reverbRange: [0.38, 0.65],
+    distChance: 0.10, distRange: [0.02, 0.08],
+    tremoloChance: 0.45, tremoloRange: [0.3, 1.5],
+    adsrChance: 0.85, adsrStyle: 'long',
+    lfoParams: ['cut','det','pan','rev'], lfoChance: 0.7, lfoRateRange: [0.15, 0.9],
+    dstShapes: ['soft','fold'], dstShapeChance: 0.2,
+    ratchetChance: 0.03,
+    voiceCountRange: [2, 3],
+    bassDroneChance: 0.75, ghostChance: 0.65,
+  },
+  rhythmic: {
+    scales: ['minor_pentatonic','major_pentatonic','dorian','aeolian','ryuku'],
+    bpmRange: [92, 128],
+    strategies: ['euclidean','euclidean','polyrhythm'],
+    atkRange: [0.005, 0.04], cutoffRange: [3500, 12000],
+    delayRange: [0.06, 0.20], reverbRange: [0.15, 0.32],
+    distChance: 0.35, distRange: [0.05, 0.18],
+    tremoloChance: 0.15, tremoloRange: [1.5, 3.5],
+    adsrChance: 0.55, adsrStyle: 'short',
+    lfoParams: ['pan','cut','prb'], lfoChance: 0.4, lfoRateRange: [0.8, 3.0],
+    dstShapes: ['hard','fuzz','soft'], dstShapeChance: 0.35,
+    ratchetChance: 0.22,
+    voiceCountRange: [3, 5],
+    bassDroneChance: 0.85, ghostChance: 0.30,
+  },
+  dark: {
+    scales: ['aeolian','japanese_miyakobushi','egyptian','whole_tone','melodic_minor'],
+    bpmRange: [62, 88],
+    strategies: ['anchor-scatter','euclidean','polyrhythm'],
+    atkRange: [0.02, 0.14], cutoffRange: [1600, 5500],
+    delayRange: [0.14, 0.30], reverbRange: [0.35, 0.60],
+    distChance: 0.45, distRange: [0.08, 0.22],
+    tremoloChance: 0.40, tremoloRange: [0.4, 1.8],
+    adsrChance: 0.75, adsrStyle: 'long',
+    lfoParams: ['cut','res','det'], lfoChance: 0.6, lfoRateRange: [0.10, 0.6],
+    dstShapes: ['fuzz','fold','hard'], dstShapeChance: 0.4,
+    ratchetChance: 0.06,
+    voiceCountRange: [2, 4],
+    bassDroneChance: 0.90, ghostChance: 0.25,
+  },
+  bright: {
+    scales: ['major_pentatonic','major_pentatonic','hawaiian','ryuku','balinese_pelog'],
+    bpmRange: [88, 120],
+    strategies: ['euclidean','anchor-scatter','polyrhythm'],
+    atkRange: [0.005, 0.05], cutoffRange: [6000, 16000],
+    delayRange: [0.08, 0.22], reverbRange: [0.18, 0.40],
+    distChance: 0.12, distRange: [0.02, 0.08],
+    tremoloChance: 0.25, tremoloRange: [1.5, 3.5],
+    adsrChance: 0.50, adsrStyle: 'medium',
+    lfoParams: ['pan','cut','rev'], lfoChance: 0.45, lfoRateRange: [0.6, 2.4],
+    dstShapes: ['soft'], dstShapeChance: 0.10,
+    ratchetChance: 0.15,
+    voiceCountRange: [3, 5],
+    bassDroneChance: 0.55, ghostChance: 0.60,
+  },
+  movement: {
+    scales: ['dorian','melodic_minor','whole_tone','major_pentatonic','minor_pentatonic'],
+    bpmRange: [78, 116],
+    strategies: ['polyrhythm','polyrhythm','euclidean'],
+    atkRange: [0.01, 0.08], cutoffRange: [3000, 11000],
+    delayRange: [0.14, 0.30], reverbRange: [0.25, 0.50],
+    distChance: 0.25, distRange: [0.05, 0.15],
+    tremoloChance: 0.55, tremoloRange: [1.0, 3.5],
+    adsrChance: 0.65, adsrStyle: 'medium',
+    lfoParams: ['cut','pan','res','dly','rev'], lfoChance: 0.75, lfoRateRange: [0.25, 1.8],
+    dstShapes: ['soft','fold','fuzz'], dstShapeChance: 0.25,
+    ratchetChance: 0.18,
+    voiceCountRange: [2, 4],
+    bassDroneChance: 0.70, ghostChance: 0.50,
+  },
+};
+
+document.getElementById('randRefresh').addEventListener('click', () => document.getElementById('randBtn').click());
+
 document.getElementById('randBtn').addEventListener('click', () => {
   for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
   clearSel();
@@ -2163,25 +2253,24 @@ document.getElementById('randBtn').addEventListener('click', () => {
   const pick = a => a[Math.random() * a.length | 0];
   const rngR = (lo, hi) => lo + rng() * (hi - lo);
 
-  // ── Scale — weighted toward ambient/modal ──────────────
-  const AMBIENT_SCALES = [
-    'major_pentatonic','major_pentatonic','major_pentatonic',
-    'minor_pentatonic','minor_pentatonic','minor_pentatonic',
-    'aeolian','aeolian','dorian','dorian',
-    'hawaiian','egyptian','balinese_pelog','japanese_miyakobushi',
-    'whole_tone','melodic_minor','ryuku',
-  ];
-  const chosenScale = pick(AMBIENT_SCALES);
+  // ── Resolve mood ────────────────────────────────────
+  const moodSelectEl = document.getElementById('moodSelect');
+  const moodKeys = Object.keys(MOOD_PROFILES);
+  const sel = moodSelectEl?.value || 'auto';
+  const mood = sel === 'auto' ? pick(moodKeys) : (MOOD_PROFILES[sel] ? sel : pick(moodKeys));
+  const prof = MOOD_PROFILES[mood];
+
+  // ── Scale & BPM from mood ───────────────────────────
+  const chosenScale = pick(prof.scales);
   S.scale = chosenScale;
   document.getElementById('scaleSelect').value = chosenScale;
 
-  // ── BPM — downtempo 58–108 ────────────────────────────
-  const bpm = Math.round(rngR(58, 108));
+  const bpm = Math.round(rngR(prof.bpmRange[0], prof.bpmRange[1]));
   S.bpm = bpm;
   document.getElementById('bpmSlider').value = bpm;
   document.getElementById('bpmVal').textContent = bpm;
 
-  // ── Wave palette per register ─────────────────────────
+  // ── Wave palette per register ───────────────────────
   const bassWaves = ['sine','sine','triangle'];
   const midWaves  = ['sine','sine','triangle','triangle'];
   const hiWaves   = ['sine','triangle','sine','triangle','square'];
@@ -2191,17 +2280,17 @@ document.getElementById('randBtn').addEventListener('click', () => {
     return pick(hiWaves);
   }
 
-  // ── Global FX: ambient-friendly randomized values ─────
-  const gAtk     = rngR(0.01, 0.12);
+  // ── Global FX shaped by mood ────────────────────────
+  const gAtk     = rngR(prof.atkRange[0], prof.atkRange[1]);
   const gDetune  = rngR(0, 8);
-  const gCutoff  = Math.round(rngR(2400, 12000));
+  const gCutoff  = Math.round(rngR(prof.cutoffRange[0], prof.cutoffRange[1]));
   const gRes     = rngR(0.5, 3.5);
-  const gDist    = rng() < 0.2 ? rngR(0.02, 0.10) : 0;
-  const gDelay   = rngR(0.05, 0.22);
-  const gReverb  = rngR(0.15, 0.45);
+  const gDist    = rng() < prof.distChance ? rngR(prof.distRange[0], prof.distRange[1]) : 0;
+  const gDelay   = rngR(prof.delayRange[0], prof.delayRange[1]);
+  const gReverb  = rngR(prof.reverbRange[0], prof.reverbRange[1]);
   const gFeedback = rngR(0.25, 0.55);
-  const gLPF     = Math.round(rngR(4000, 18000));
-  const gTremolo = rng() < 0.3 ? rngR(0.5, 3.5) : 0;
+  const gLPF     = Math.round(prof.lpfRange ? rngR(prof.lpfRange[0], prof.lpfRange[1]) : rngR(4000, 18000));
+  const gTremolo = rng() < prof.tremoloChance ? rngR(prof.tremoloRange[0], prof.tremoloRange[1]) : 0;
 
   FX.attack = gAtk; FX.detune = gDetune; FX.cutoff = gCutoff;
   FX.resonance = gRes; FX.distortion = gDist; FX.pan = 0;
@@ -2242,7 +2331,43 @@ document.getElementById('randBtn').addEventListener('click', () => {
     if (delayFeedbackNode) delayFeedbackNode.gain.setTargetAtTime(gFeedback, t, 0.01);
   }
 
-  // ── Bjorklund / Euclidean rhythm generator ────────────
+  // ── Pattern-level shared modifiers (coherence) ──────
+  const patternLfoBase  = rngR(prof.lfoRateRange[0], prof.lfoRateRange[1]);
+  const patternLfoShape = pick(['sine','sine','triangle','sawtooth']);
+  const patternDstShape = pick(prof.dstShapes);
+
+  function makeAdsr() {
+    if (prof.adsrStyle === 'long') {
+      return { a: rngR(0.10, 0.28), d: rngR(0.20, 0.45), s: rngR(0.60, 0.82), h: rngR(0.30, 0.55), r: rngR(0.35, 0.75) };
+    }
+    if (prof.adsrStyle === 'short') {
+      return { a: rngR(0.005, 0.03), d: rngR(0.05, 0.12), s: rngR(0.30, 0.55), h: rngR(0.05, 0.15), r: rngR(0.05, 0.18) };
+    }
+    return { a: rngR(0.03, 0.12), d: rngR(0.10, 0.25), s: rngR(0.50, 0.75), h: rngR(0.15, 0.35), r: rngR(0.15, 0.40) };
+  }
+
+  function applyMoodFx(note, r) {
+    if (!note) return;
+    if (rng() < prof.adsrChance) note.adsr = makeAdsr();
+    if (prof.lfoParams.length && rng() < prof.lfoChance) {
+      const nLfo = rng() < 0.35 ? 2 : 1;
+      const pool = [...prof.lfoParams];
+      for (let i = 0; i < nLfo && pool.length; i++) {
+        const idx = rng() * pool.length | 0;
+        const p = pool.splice(idx, 1)[0];
+        note.lfo = note.lfo || {};
+        note.lfo[p] = {
+          rate: Math.max(0.05, patternLfoBase * rngR(0.7, 1.4)),
+          depth: rngR(0.28, 0.68),
+          shape: patternLfoShape,
+        };
+      }
+    }
+    if (gDist > 0 && rng() < prof.dstShapeChance) note.dstShape = patternDstShape;
+    if (r < 10 && rng() < prof.ratchetChance) note.ratchet = pick([2, 2, 3, 4]);
+  }
+
+  // ── Bjorklund / Euclidean rhythm generator ──────────
   function euclidean(steps, pulses) {
     if (pulses <= 0) return new Array(steps).fill(0);
     if (pulses >= steps) return new Array(steps).fill(1);
@@ -2273,11 +2398,12 @@ document.getElementById('randBtn').addEventListener('click', () => {
     return flat.length >= steps ? flat.slice(0, steps) : flat.concat(new Array(steps - flat.length).fill(0));
   }
 
-  // ── Column density caps (max simultaneous voices) ─────
+  // ── Column density caps (max simultaneous voices) ───
   const colCount = new Array(COLS).fill(0);
-  const MAX_VOICES = 2 + (rng() * 3 | 0); // 2–4
+  const [vMin, vMax] = prof.voiceCountRange;
+  const MAX_VOICES = vMin + (rng() * (vMax - vMin + 1) | 0);
 
-  // ── Per-note FX factory — varies by register ──────────
+  // ── Per-note FX factory — varies by register ────────
   function noteFx(r) {
     const t = r / 15; // 0 = top (high), 1 = bottom (bass)
     const usePan = rng() < 0.06;
@@ -2294,22 +2420,19 @@ document.getElementById('randBtn').addEventListener('click', () => {
     };
   }
 
-  // ── Choose a structural strategy ──────────────────────
-  const strategy = pick(['euclidean', 'euclidean', 'anchor-scatter', 'polyrhythm']);
+  // ── Strategy chosen from mood profile ───────────────
+  const strategy = pick(prof.strategies);
 
-  // anchor columns — rhythmic backbone
   const anchorSets = [[0,4,8,12], [0,6,12], [0,4,10], [0,8], [0,3,6,9,12]];
   const anchors = new Set(pick(anchorSets));
 
   if (strategy === 'euclidean') {
-    // 2–4 melodic voices on euclidean rhythms
-    const nVoices = 2 + (rng() * 3 | 0);
+    const nVoices = vMin + (rng() * (vMax - vMin + 1) | 0);
     const usedRows = new Set();
     for (let v = 0; v < nVoices; v++) {
       let r;
       do { r = Math.random() * ROWS | 0; } while (usedRows.has(r));
       usedRows.add(r);
-      const t = r / 15;
       const density = r >= 12 ? (1 + (rng() * 3 | 0)) : (2 + (rng() * 5 | 0));
       const rhythm = euclidean(COLS, density);
       const rotation = Math.random() * COLS | 0;
@@ -2318,23 +2441,25 @@ document.getElementById('randBtn').addEventListener('click', () => {
         if (colCount[c] >= MAX_VOICES) continue;
         const vol = r >= 12 ? rngR(0.35, 0.55) : r >= 5 ? rngR(0.25, 0.50) : rngR(0.15, 0.38);
         const decay = r >= 12 ? rngR(0.5, 1.2) : r >= 5 ? rngR(0.3, 0.7) : rngR(0.15, 0.45);
-        S.cells[r][c] = { wave: waveFor(r), vol, decay, scale: chosenScale, ...noteFx(r) };
+        const note = { wave: waveFor(r), vol, decay, scale: chosenScale, ...noteFx(r) };
+        applyMoodFx(note, r);
+        S.cells[r][c] = note;
         colCount[c]++;
       }
     }
   } else if (strategy === 'anchor-scatter') {
-    // anchor row with strong beats, scatter above
     const anchorRow = 8 + (rng() * 6 | 0);
     for (const c of anchors) {
       if (rng() < 0.82) {
-        S.cells[anchorRow][c] = {
+        const note = {
           wave: 'sine', vol: rngR(0.35, 0.55), decay: rngR(0.6, 1.2),
           scale: chosenScale, ...noteFx(anchorRow),
         };
+        applyMoodFx(note, anchorRow);
+        S.cells[anchorRow][c] = note;
         colCount[c]++;
       }
     }
-    // scattered melody in upper rows
     const nScatter = 4 + (rng() * 10 | 0);
     for (let i = 0; i < nScatter; i++) {
       const r = rng() * 12 | 0;
@@ -2342,14 +2467,16 @@ document.getElementById('randBtn').addEventListener('click', () => {
       if (S.cells[r][c] || colCount[c] >= MAX_VOICES) continue;
       const prob = anchors.has(c) ? 0.75 : 0.45;
       if (rng() > prob) continue;
-      S.cells[r][c] = {
+      const note = {
         wave: waveFor(r), vol: rngR(0.18, 0.42), decay: rngR(0.2, 0.55),
         scale: chosenScale, ...noteFx(r),
       };
+      applyMoodFx(note, r);
+      S.cells[r][c] = note;
       colCount[c]++;
     }
   } else {
-    // polyrhythm: 2–3 rows with coprime pulse counts
+    // polyrhythm
     const primes = [3, 5, 7, 11];
     const nLayers = 2 + (rng() < 0.4 ? 1 : 0);
     const usedRows = new Set();
@@ -2363,42 +2490,48 @@ document.getElementById('randBtn').addEventListener('click', () => {
       for (let c = 0; c < COLS; c++) {
         if (!rhythm[(c + rotation) % COLS]) continue;
         if (colCount[c] >= MAX_VOICES) continue;
-        S.cells[r][c] = {
+        const note = {
           wave: waveFor(r), vol: rngR(0.22, 0.45), decay: rngR(0.25, 0.65),
           scale: chosenScale, ...noteFx(r),
         };
+        applyMoodFx(note, r);
+        S.cells[r][c] = note;
         colCount[c]++;
       }
     }
   }
 
-  // ── Optional bass drone (bottom 3 rows) ───────────────
-  if (rng() < 0.6) {
+  // ── Optional bass drone (bottom 3 rows) ─────────────
+  if (rng() < prof.bassDroneChance) {
     const bassRow = 13 + (rng() * 3 | 0);
     const bassPulses = pick([1, 2, 2, 3, 4]);
     const bassRhythm = euclidean(COLS, bassPulses);
     for (let c = 0; c < COLS; c++) {
       if (!bassRhythm[c] || colCount[c] >= MAX_VOICES) continue;
-      S.cells[bassRow][c] = {
+      const note = {
         wave: pick(['sine','sine','triangle']),
         vol: rngR(0.25, 0.48), decay: rngR(0.7, 1.5),
         scale: chosenScale, ...noteFx(bassRow), prob: rngR(0.75, 1.0),
       };
+      applyMoodFx(note, bassRow);
+      S.cells[bassRow][c] = note;
       colCount[c]++;
     }
   }
 
-  // ── Optional ghost layer — very quiet scattered high notes ──
-  if (rng() < 0.45) {
+  // ── Optional ghost layer — quiet scattered highs ────
+  if (rng() < prof.ghostChance) {
     const ghostN = 2 + (rng() * 5 | 0);
     for (let i = 0; i < ghostN; i++) {
       const r = rng() * 5 | 0;
       const c = rng() * COLS | 0;
       if (S.cells[r][c] || colCount[c] >= MAX_VOICES) continue;
-      S.cells[r][c] = {
+      const note = {
         wave: 'sine', vol: rngR(0.08, 0.20), decay: rngR(0.3, 0.6),
         scale: chosenScale, ...noteFx(r), prob: rngR(0.30, 0.60),
       };
+      applyMoodFx(note, r);
+      S.cells[r][c] = note;
     }
   }
 
@@ -2736,36 +2869,28 @@ document.addEventListener('keyup', e => {
 
 /* ── FX controls ────────────────────────────────────── */
 document.getElementById('atkSlider').addEventListener('input', function () {
-  FX.attack = this.value / 1000;
   document.getElementById('atkVal').textContent = `${this.value}ms`;
-  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].attack = FX.attack;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].attack = this.value / 1000;
 });
 document.getElementById('cutSlider').addEventListener('input', function () {
   const hz = Math.round(200 * Math.pow(100, this.value / 100));
-  FX.cutoff = hz;
   const disp = hz >= 18000 ? 'open' : hz >= 1000 ? `${(hz/1000).toFixed(1)}k` : `${hz}`;
   document.getElementById('cutVal').textContent = disp;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].cutoff = hz;
 });
 document.getElementById('resSlider').addEventListener('input', function () {
   const q = 0.1 + (this.value / 100) * 11.9;
-  FX.resonance = q;
   document.getElementById('resVal').textContent = q.toFixed(1);
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].resonance = q;
 });
 document.getElementById('detSlider').addEventListener('input', function () {
-  FX.detune = +this.value;
   document.getElementById('detVal').textContent = `${this.value}¢`;
-  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].detune = FX.detune;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].detune = +this.value;
 });
 document.getElementById('panSlider').addEventListener('input', function () {
   const v = +this.value;
   document.getElementById('panVal').textContent = v === 0 ? 'C' : v < 0 ? `L${-v}` : `R${v}`;
-  if (selR >= 0 && S.cells[selR][selC]) {
-    S.cells[selR][selC].pan = v;
-  } else {
-    FX.pan = v;
-  }
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].pan = v;
 });
 document.getElementById('rvlSlider').addEventListener('input', function () {
   FX.reverbLevel = this.value / 100;
@@ -2792,14 +2917,12 @@ document.getElementById('trmSlider').addEventListener('input', function () {
   document.getElementById('trmVal').textContent = rate === 0 ? 'off' : `${rate.toFixed(1)}Hz`;
 });
 document.getElementById('dstSlider').addEventListener('input', function () {
-  FX.distortion = this.value / 100;
   document.getElementById('dstVal').textContent = `${this.value}%`;
-  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].distortion = FX.distortion;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].distortion = this.value / 100;
 });
 document.getElementById('dlySlider').addEventListener('input', function () {
-  FX.delaySend = this.value / 100;
   document.getElementById('dlyVal').textContent = `${this.value}%`;
-  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].delaySend = FX.delaySend;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].delaySend = this.value / 100;
 });
 document.getElementById('fdbSlider').addEventListener('input', function () {
   FX.delayFeedback = this.value / 100;
@@ -2807,21 +2930,22 @@ document.getElementById('fdbSlider').addEventListener('input', function () {
   document.getElementById('fdbVal').textContent = `${this.value}%`;
 });
 document.getElementById('revSlider').addEventListener('input', function () {
-  FX.reverbSend = this.value / 100;
   document.getElementById('revVal').textContent = `${this.value}%`;
-  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].reverbSend = FX.reverbSend;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].reverbSend = this.value / 100;
 });
 document.getElementById('probSlider').addEventListener('input', function () {
-  FX.prob = this.value / 100;
   document.getElementById('probVal').textContent = `${this.value}%`;
-  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].prob = FX.prob;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].prob = this.value / 100;
 });
 
 // reset fx — per-note controls only
 document.getElementById('fxResetBtn1').addEventListener('click', () => {
-  FX.attack = 0.006; FX.cutoff = 18000; FX.resonance = 1.0;
-  FX.detune = 0; FX.pan = 0; FX.distortion = 0; FX.delaySend = 0; FX.reverbSend = 0; FX.prob = 1.0;
-  FX.lfo = {}; FX.adsr = null; FX.dstShape = 'soft'; FX.ratchet = 1;
+  if (!(selR >= 0 && S.cells[selR][selC])) return;
+  const n = S.cells[selR][selC];
+  n.attack = 0.006; n.detune = 0; n.pan = 0;
+  n.cutoff = 18000; n.resonance = 1.0; n.distortion = 0;
+  n.delaySend = 0; n.reverbSend = 0; n.prob = 1.0;
+  n.lfo = {}; n.adsr = null; n.dstShape = 'soft'; n.ratchet = 1;
 
   document.getElementById('atkSlider').value  = 6;    document.getElementById('atkVal').textContent  = '6ms';
   document.getElementById('detSlider').value  = 0;    document.getElementById('detVal').textContent  = '0¢';
@@ -2832,15 +2956,6 @@ document.getElementById('fxResetBtn1').addEventListener('click', () => {
   document.getElementById('dlySlider').value  = 0;    document.getElementById('dlyVal').textContent  = '0%';
   document.getElementById('revSlider').value  = 0;    document.getElementById('revVal').textContent  = '0%';
   document.getElementById('probSlider').value = 100;  document.getElementById('probVal').textContent = '100%';
-
-  if (selR >= 0 && S.cells[selR][selC]) {
-    const n = S.cells[selR][selC];
-    n.attack = FX.attack; n.detune = FX.detune; n.pan = FX.pan;
-    n.cutoff = FX.cutoff; n.resonance = FX.resonance;
-    n.distortion = FX.distortion;
-    n.delaySend = FX.delaySend; n.reverbSend = FX.reverbSend; n.prob = FX.prob;
-    n.lfo = {}; n.adsr = null; n.dstShape = 'soft'; n.ratchet = 1;
-  }
   reflectLfoDefaults();
 });
 
