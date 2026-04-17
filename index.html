@@ -255,9 +255,14 @@
 
     /* ── Responsive: stack on narrow viewports ────────── */
     @media (max-width: 940px) {
-      .main-layout { flex-direction: column; }
-      .ctrl-panel  { width: 100%; }
-      #viz-cv      { flex: none; height: 140px; }
+      .main-layout  { flex-direction: column; }
+      .ctrl-panel   { width: 100%; gap: 4px; }
+      #viz-cv       { flex: none; height: 140px; }
+      .ctrl-row.slider { min-height: 52px; margin-bottom: 8px; }
+      .ctrl-gap        { height: 22px; }
+      .panel-rule      { margin: 10px 0; }
+      #fx-panel-1,
+      #fx-panel-2      { gap: 16px !important; }
     }
     @media (max-width: 580px) {
       .hdr      { flex-wrap: wrap; row-gap: 10px; }
@@ -335,6 +340,10 @@
     .tui-btn.sel { color: var(--accent); text-shadow: 0 0 6px var(--accent); }
     .tui-btn.sel::before { content: '['; color: rgba(255,255,255,0.45); }
     .tui-btn.sel::after  { content: ']'; color: rgba(255,255,255,0.45); }
+    #fxTab1Btn::before, #fxTab1Btn::after,
+    #fxTab2Btn::before, #fxTab2Btn::after { content: '\00a0'; visibility: hidden; }
+    #fxTab1Btn.sel::before, #fxTab2Btn.sel::before { content: '['; visibility: visible; }
+    #fxTab1Btn.sel::after,  #fxTab2Btn.sel::after  { content: ']'; visibility: visible; }
 
     /* action buttons */
     .tui-action {
@@ -598,105 +607,125 @@
 
       <div class="panel-rule" style="margin-top: 8px;"></div>
 
-      <button id="shift-hint" class="tui-btn" tabindex="-1" style="letter-spacing:2px; color:rgba(255,255,255,0.38); font-size:11px; margin-bottom:4px;">fx(shift)</button>
+      <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:4px;">
+        <button id="shift-hint" class="tui-btn" tabindex="-1" style="letter-spacing:2px; color:rgba(255,255,255,0.38); font-size:14px;">fx</button>
+        <div style="display:flex; gap:12px; letter-spacing:2px;">
+          <button class="tui-btn" id="fxTab1Btn" tabindex="-1">A</button>
+          <button class="tui-btn" id="fxTab2Btn" tabindex="-1">B</button>
+        </div>
+      </div>
       <canvas id="viz-cv"></canvas>
 
-      <!-- Wave shaper panel — visible while Shift is held -->
+      <!-- Wave shaper panel — visible while Shift is held or tab active -->
       <div id="wave-panel">
         <canvas id="scope-cv"></canvas>
         <div class="panel-rule" style="margin-bottom:2px;"></div>
 
-        <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">per note</div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">atk</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="atkSlider" min="0" max="300" value="6" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="atkVal">6ms</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">det</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="detSlider" min="0" max="50" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="detVal">0¢</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">cut</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="cutSlider" min="0" max="100" value="100" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="cutVal">open</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">res</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="resSlider" min="0" max="100" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="resVal">1.0</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">dst</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="dstSlider" min="0" max="100" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="dstVal">0%</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">dly</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="dlySlider" min="0" max="100" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="dlyVal">0%</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">rev</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="revSlider" min="0" max="100" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="revVal">0%</span>
+        <!-- Tab 1: per-note controls -->
+        <div id="fx-panel-1" style="display:flex; flex-direction:column; gap:2px;">
+          <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">per note</div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">atk</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="atkSlider" min="0" max="300" value="6" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="atkVal">6ms</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">det</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="detSlider" min="0" max="50" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="detVal">0¢</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">pan</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="panSlider" min="-50" max="50" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="panVal">C</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">cut</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="cutSlider" min="0" max="100" value="100" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="cutVal">open</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">res</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="resSlider" min="0" max="100" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="resVal">1.0</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">dst</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="dstSlider" min="0" max="100" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="dstVal">0%</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">dly</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="dlySlider" min="0" max="100" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="dlyVal">0%</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">rev</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="revSlider" min="0" max="100" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="revVal">0%</span>
+          </div>
+          <div class="ctrl-row" style="margin-top:6px;">
+            <button class="tui-btn" id="fxResetBtn1" tabindex="-1">reset fx</button>
+          </div>
         </div>
 
-        <div class="panel-rule" style="margin: 6px 0;"></div>
-
-        <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">global</div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">rvl</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="rvlSlider" min="0" max="100" value="70" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="rvlVal">70%</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">hpf</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="hpfSlider" min="0" max="100" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="hpfVal">open</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">lpf</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="lpfSlider" min="0" max="100" value="100" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="lpfVal">open</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">trm</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="trmSlider" min="0" max="80" value="0" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="trmVal">off</span>
-        </div>
-        <div class="ctrl-row slider">
-          <span class="ctrl-key">fdb</span>
-          <span class="s-brk">◄</span>
-          <input type="range" id="fdbSlider" min="0" max="90" value="35" step="1">
-          <span class="s-brk">►</span>
-          <span class="ctrl-val" id="fdbVal">35%</span>
-        </div>
-        <div class="ctrl-row" style="margin-top:6px;">
-          <button class="tui-btn" id="fxResetBtn" tabindex="-1">reset fx</button>
+        <!-- Tab 2: global controls -->
+        <div id="fx-panel-2" style="display:none; flex-direction:column; gap:2px;">
+          <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">global</div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">rvl</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="rvlSlider" min="0" max="100" value="70" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="rvlVal">70%</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">hpf</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="hpfSlider" min="0" max="100" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="hpfVal">open</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">lpf</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="lpfSlider" min="0" max="100" value="100" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="lpfVal">open</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">trm</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="trmSlider" min="0" max="80" value="0" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="trmVal">off</span>
+          </div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">fdb</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="fdbSlider" min="0" max="90" value="35" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="fdbVal">35%</span>
+          </div>
+          <div class="ctrl-row" style="margin-top:6px;">
+            <button class="tui-btn" id="fxResetBtn2" tabindex="-1">reset fx</button>
+          </div>
         </div>
       </div>
 
@@ -1046,6 +1075,7 @@ const FX = {
   cutoff:        18000,
   resonance:     1.0,
   detune:        0,
+  pan:           0,
   distortion:    0,
   delaySend:     0,
   reverbSend:    0,
@@ -1252,6 +1282,7 @@ function reflectNote(note) {
 
   const atk   = note.attack      ?? FX.attack;
   const det   = note.detune      ?? FX.detune;
+  const pan   = note.pan         ?? FX.pan;
   const cut   = note.cutoff      ?? FX.cutoff;
   const res   = note.resonance   ?? FX.resonance;
   const dst   = note.distortion  ?? FX.distortion;
@@ -1260,8 +1291,10 @@ function reflectNote(note) {
 
   document.getElementById('atkSlider').value = Math.round(atk * 1000);
   document.getElementById('atkVal').textContent = `${Math.round(atk * 1000)}ms`;
-  document.getElementById('detSlider').value = det;
-  document.getElementById('detVal').textContent = `${det}¢`;
+  document.getElementById('detSlider').value = Math.round(det);
+  document.getElementById('detVal').textContent = `${Math.round(det)}¢`;
+  document.getElementById('panSlider').value = pan;
+  document.getElementById('panVal').textContent = pan === 0 ? 'C' : pan < 0 ? `L${-pan}` : `R${pan}`;
 
   // cut: reverse Hz→slider mapping  slider = log(hz/200) / log(100) * 100
   const cutSliderVal = Math.round(Math.log(cut / 200) / Math.log(100) * 100);
@@ -1291,11 +1324,14 @@ function playTone(freq, note, when) {
   const dst   = note.distortion          ?? FX.distortion;
   const dSend = note.delaySend           ?? FX.delaySend;
   const rSend = note.reverbSend          ?? FX.reverbSend;
+  const pan   = (note.pan                ?? FX.pan) / 50;
 
-  const osc  = audioCtx.createOscillator();
-  const gain = audioCtx.createGain();
-  const filt = audioCtx.createBiquadFilter();
-  const dist = audioCtx.createWaveShaper();
+  const osc    = audioCtx.createOscillator();
+  const gain   = audioCtx.createGain();
+  const filt   = audioCtx.createBiquadFilter();
+  const dist   = audioCtx.createWaveShaper();
+  const panner = audioCtx.createStereoPanner();
+  panner.pan.value = Math.max(-1, Math.min(1, pan));
 
   osc.type = note.wave;
   osc.frequency.value = freq;
@@ -1316,7 +1352,8 @@ function playTone(freq, note, when) {
   osc.connect(gain);
   gain.connect(filt);
   filt.connect(dist);
-  dist.connect(master);
+  dist.connect(panner);
+  panner.connect(master);
 
   if (dSend > 0) {
     const dg = audioCtx.createGain();
@@ -1695,7 +1732,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
   const gTremolo = rng() < 0.3 ? rngR(0.5, 3.5) : 0;
 
   FX.attack = gAtk; FX.detune = gDetune; FX.cutoff = gCutoff;
-  FX.resonance = gRes; FX.distortion = gDist;
+  FX.resonance = gRes; FX.distortion = gDist; FX.pan = 0;
   FX.delaySend = gDelay; FX.reverbSend = gReverb;
   FX.delayFeedback = gFeedback; FX.lpfCutoff = gLPF; FX.tremolo = gTremolo;
 
@@ -1704,6 +1741,8 @@ document.getElementById('randBtn').addEventListener('click', () => {
   document.getElementById('atkVal').textContent = `${Math.round(gAtk * 1000)}ms`;
   document.getElementById('detSlider').value = Math.round(gDetune);
   document.getElementById('detVal').textContent = `${Math.round(gDetune)}¢`;
+  document.getElementById('panSlider').value = 0;
+  document.getElementById('panVal').textContent = 'C';
   const cutSliderVal = Math.round(100 * Math.log(gCutoff / 200) / Math.log(100));
   document.getElementById('cutSlider').value = cutSliderVal;
   document.getElementById('cutVal').textContent = gCutoff >= 18000 ? 'open' : gCutoff >= 1000 ? `${(gCutoff/1000).toFixed(1)}k` : `${gCutoff}`;
@@ -1769,14 +1808,16 @@ document.getElementById('randBtn').addEventListener('click', () => {
   // ── Per-note FX factory — varies by register ──────────
   function noteFx(r) {
     const t = r / 15; // 0 = top (high), 1 = bottom (bass)
+    const usePan = rng() < 0.06;
     return {
       attack:     rngR(0.005, 0.005 + t * 0.14),
-      detune:     rngR(0, 3 + t * 5),
+      detune:     Math.round(rngR(0, 3 + t * 5)),
       cutoff:     Math.round(rngR(3000 + (1 - t) * 8000, 6000 + (1 - t) * 12000)),
       resonance:  rngR(0.5, 2.0 + (1 - t) * 2),
       distortion: gDist,
       delaySend:  rng() < 0.18 ? rngR(0.05, 0.18) : gDelay,
       reverbSend: rngR(0.12 + (1 - t) * 0.1, 0.30 + (1 - t) * 0.2),
+      pan:        usePan ? Math.round(rngR(12, 38)) * (rng() < 0.5 ? -1 : 1) : 0,
     };
   }
 
@@ -2156,9 +2197,17 @@ function drawScope() {
   requestAnimationFrame(drawScope);
 }
 
-/* ── Shift — wave panel toggle ──────────────────────── */
+/* ── FX panel toggle ─────────────────────────────────── */
 let shiftActive = false;
-let shiftLocked  = false;  // true when opened via tap (stays open until tapped again)
+let fxLocked    = false;  // true when opened via click (stays open until clicked again)
+let fxTab = 1;            // 1 = per-note (A), 2 = global (B)
+
+function updateFxTabBtns() {
+  const b1 = document.getElementById('fxTab1Btn');
+  const b2 = document.getElementById('fxTab2Btn');
+  b1.classList.toggle('sel', shiftActive && fxTab === 1);
+  b2.classList.toggle('sel', shiftActive && fxTab === 2);
+}
 
 function openShiftPanel() {
   if (shiftActive) return;
@@ -2166,38 +2215,57 @@ function openShiftPanel() {
   document.getElementById('viz-cv').style.display = 'none';
   document.getElementById('session-area').style.display = 'none';
   document.getElementById('wave-panel').style.display = 'flex';
+  document.getElementById('fx-panel-1').style.display = fxTab === 1 ? 'flex' : 'none';
+  document.getElementById('fx-panel-2').style.display = fxTab === 2 ? 'flex' : 'none';
   const hint = document.getElementById('shift-hint');
-  hint.textContent = 'fx(shift)';
   hint.style.color = lineColor;
+  updateFxTabBtns();
   if (!scopeActive) { scopeActive = true; drawScope(); }
 }
 
 function closeShiftPanel() {
   if (!shiftActive) return;
   shiftActive = false;
-  shiftLocked  = false;
+  fxLocked    = false;
   document.getElementById('viz-cv').style.display = '';
   document.getElementById('session-area').style.display = '';
   document.getElementById('wave-panel').style.display = 'none';
-  const hint = document.getElementById('shift-hint');
-  hint.textContent = 'fx(shift)';
-  hint.style.color = '';
+  document.getElementById('shift-hint').style.color = '';
+  updateFxTabBtns();
   scopeActive = false;
 }
 
+// fromKeyboard=true: only open/switch, never toggle-close on same tab
+function setFxTab(n, fromKeyboard) {
+  if (!fromKeyboard && shiftActive && fxTab === n) { closeShiftPanel(); return; }
+  fxTab = n;
+  if (!shiftActive) {
+    if (!fromKeyboard) fxLocked = true;
+    openShiftPanel();
+    return;
+  }
+  document.getElementById('fx-panel-1').style.display = n === 1 ? 'flex' : 'none';
+  document.getElementById('fx-panel-2').style.display = n === 2 ? 'flex' : 'none';
+  updateFxTabBtns();
+}
+
+document.getElementById('fxTab1Btn').addEventListener('click', () => setFxTab(1));
+document.getElementById('fxTab2Btn').addEventListener('click', () => setFxTab(2));
+
 document.getElementById('shift-hint').addEventListener('click', () => {
-  if (shiftLocked) { closeShiftPanel(); }
-  else             { shiftLocked = true; openShiftPanel(); }
+  if (fxLocked) { closeShiftPanel(); }
+  else          { fxLocked = true; openShiftPanel(); }
 });
 
+// Desktop: hold A/B to show panel, release to hide (unless locked by click)
 document.addEventListener('keydown', e => {
-  if (e.key === 'Shift') {
-    if (shiftLocked) closeShiftPanel();
-    else openShiftPanel();
-  }
+  if (e.key === 'a' || e.key === 'A') { e.preventDefault(); setFxTab(1, true); }
+  else if (e.key === 'b' || e.key === 'B') { e.preventDefault(); setFxTab(2, true); }
 });
 document.addEventListener('keyup', e => {
-  if (e.key === 'Shift' && !shiftLocked) closeShiftPanel();
+  if (e.key === 'a' || e.key === 'A' || e.key === 'b' || e.key === 'B') {
+    if (!fxLocked) closeShiftPanel();
+  }
 });
 
 /* ── FX controls ────────────────────────────────────── */
@@ -2223,6 +2291,15 @@ document.getElementById('detSlider').addEventListener('input', function () {
   FX.detune = +this.value;
   document.getElementById('detVal').textContent = `${this.value}¢`;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].detune = FX.detune;
+});
+document.getElementById('panSlider').addEventListener('input', function () {
+  const v = +this.value;
+  document.getElementById('panVal').textContent = v === 0 ? 'C' : v < 0 ? `L${-v}` : `R${v}`;
+  if (selR >= 0 && S.cells[selR][selC]) {
+    S.cells[selR][selC].pan = v;
+  } else {
+    FX.pan = v;
+  }
 });
 document.getElementById('rvlSlider').addEventListener('input', function () {
   FX.reverbLevel = this.value / 100;
@@ -2269,17 +2346,34 @@ document.getElementById('revSlider').addEventListener('input', function () {
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].reverbSend = FX.reverbSend;
 });
 
-document.getElementById('fxResetBtn').addEventListener('click', () => {
-  const defaults = { attack:0.006, cutoff:18000, resonance:1.0, detune:0, distortion:0, delaySend:0, reverbSend:0, reverbLevel:0.7, hpfCutoff:20, lpfCutoff:20000, tremolo:0, delayFeedback:0.35 };
-  Object.assign(FX, defaults);
+// reset fx — per-note controls only
+document.getElementById('fxResetBtn1').addEventListener('click', () => {
+  FX.attack = 0.006; FX.cutoff = 18000; FX.resonance = 1.0;
+  FX.detune = 0; FX.pan = 0; FX.distortion = 0; FX.delaySend = 0; FX.reverbSend = 0;
 
   document.getElementById('atkSlider').value  = 6;    document.getElementById('atkVal').textContent  = '6ms';
   document.getElementById('detSlider').value  = 0;    document.getElementById('detVal').textContent  = '0¢';
+  document.getElementById('panSlider').value  = 0;    document.getElementById('panVal').textContent  = 'C';
   document.getElementById('cutSlider').value  = 100;  document.getElementById('cutVal').textContent  = 'open';
   document.getElementById('resSlider').value  = 0;    document.getElementById('resVal').textContent  = '1.0';
   document.getElementById('dstSlider').value  = 0;    document.getElementById('dstVal').textContent  = '0%';
   document.getElementById('dlySlider').value  = 0;    document.getElementById('dlyVal').textContent  = '0%';
   document.getElementById('revSlider').value  = 0;    document.getElementById('revVal').textContent  = '0%';
+
+  if (selR >= 0 && S.cells[selR][selC]) {
+    const n = S.cells[selR][selC];
+    n.attack = FX.attack;   n.detune     = FX.detune;   n.pan = FX.pan;
+    n.cutoff = FX.cutoff;   n.resonance  = FX.resonance;
+    n.distortion = FX.distortion;
+    n.delaySend  = FX.delaySend;  n.reverbSend = FX.reverbSend;
+  }
+});
+
+// reset fx — global controls only
+document.getElementById('fxResetBtn2').addEventListener('click', () => {
+  FX.reverbLevel = 0.7; FX.hpfCutoff = 20; FX.lpfCutoff = 20000;
+  FX.tremolo = 0; FX.delayFeedback = 0.35;
+
   document.getElementById('rvlSlider').value  = 70;   document.getElementById('rvlVal').textContent  = '70%';
   document.getElementById('hpfSlider').value  = 0;    document.getElementById('hpfVal').textContent  = 'open';
   document.getElementById('lpfSlider').value  = 100;  document.getElementById('lpfVal').textContent  = 'open';
@@ -2294,15 +2388,6 @@ document.getElementById('fxResetBtn').addEventListener('click', () => {
     tremoloLFO.frequency.setTargetAtTime(0, t, 0.01);
     tremoloDepthNode.gain.setTargetAtTime(0, t, 0.01);
     delayFeedbackNode.gain.setTargetAtTime(0.35, t, 0.01);
-  }
-
-  // reset selected note's per-note fx fields
-  if (selR >= 0 && S.cells[selR][selC]) {
-    const n = S.cells[selR][selC];
-    n.attack = FX.attack;   n.detune     = FX.detune;
-    n.cutoff = FX.cutoff;   n.resonance  = FX.resonance;
-    n.distortion = FX.distortion;
-    n.delaySend  = FX.delaySend;  n.reverbSend = FX.reverbSend;
   }
 });
 
@@ -2328,6 +2413,9 @@ function syncSlidersFromFX() {
   document.getElementById('atkVal').textContent = `${Math.round(f.attack * 1000)}ms`;
   document.getElementById('detSlider').value = Math.round(f.detune);
   document.getElementById('detVal').textContent = `${Math.round(f.detune)}¢`;
+  const pan = f.pan ?? 0;
+  document.getElementById('panSlider').value = pan;
+  document.getElementById('panVal').textContent = pan === 0 ? 'C' : pan < 0 ? `L${-pan}` : `R${pan}`;
   const cutSl = Math.round(Math.log(Math.max(f.cutoff, 201) / 200) / Math.log(100) * 100);
   document.getElementById('cutSlider').value = cutSl;
   document.getElementById('cutVal').textContent = f.cutoff >= 18000 ? 'open' : f.cutoff >= 1000 ? `${(f.cutoff/1000).toFixed(1)}k` : `${Math.round(f.cutoff)}`;
