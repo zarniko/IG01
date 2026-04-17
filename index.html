@@ -515,6 +515,39 @@
       display: block;
     }
     #wave-panel .ctrl-val { min-width: 52px; }
+
+    /* ── LFO sub-panels ──────────────────────────────── */
+    .lfo-toggle { cursor: pointer; }
+    .lfo-chev {
+      display: inline-block;
+      font-size: 14px; letter-spacing: 0;
+      color: rgba(255,255,255,0.22);
+      margin-left: 2px;
+      transition: transform 0.12s;
+      vertical-align: middle;
+    }
+    .lfo-toggle.open .lfo-chev { transform: rotate(90deg); }
+    .lfo-panel {
+      display: none; flex-direction: column;
+      gap: 3px;
+      border: 1px solid rgba(255,255,255,0.12);
+      padding: 5px 6px; margin: 1px 0 3px;
+    }
+    .lfo-panel.open { display: flex; }
+    .lfo-sub-key {
+      font-size: 10px; letter-spacing: 2px;
+      color: rgba(255,255,255,0.35);
+      width: 28px; flex-shrink: 0;
+    }
+    @keyframes lfo-pulse {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.2; }
+    }
+    .lfo-active {
+      animation: lfo-pulse 1.4s ease-in-out infinite;
+      color: var(--accent) !important;
+      text-shadow: 0 0 6px var(--accent);
+    }
   </style>
 </head>
 <body>
@@ -566,14 +599,6 @@
         <span class="s-brk">►</span>
         <span class="ctrl-val" id="volVal">70%</span>
       </div>
-      <div class="ctrl-row slider">
-        <span class="ctrl-key">decay</span>
-        <span class="s-brk">◄</span>
-        <input type="range" id="decaySlider" min="5" max="100" value="40" step="1">
-        <span class="s-brk">►</span>
-        <span class="ctrl-val" id="decayVal">0.40s</span>
-      </div>
-
       <div class="ctrl-gap"></div>
 
       <div class="ctrl-row slider" style="margin-bottom: 10px;">
@@ -639,6 +664,12 @@
       </div>
       <canvas id="viz-cv"></canvas>
 
+      <div id="session-row" class="ctrl-row" style="gap:14px; letter-spacing:2px; margin: 4px 0;">
+        <button class="tui-btn" id="saveBtn" tabindex="-1">save</button>
+        <button class="tui-btn" id="loadBtn" tabindex="-1">load</button>
+        <button class="tui-btn" id="shareBtn" tabindex="-1">share</button>
+      </div>
+
       <!-- Wave shaper panel — visible while Shift is held or tab active -->
       <div id="wave-panel">
         <canvas id="scope-cv"></canvas>
@@ -647,61 +678,68 @@
         <!-- Tab 1: per-note controls -->
         <div id="fx-panel-1" style="display:flex; flex-direction:column; gap:2px;">
           <div style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">per note</div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">atk</span>
+          <div class="ctrl-row slider" data-lfo="atk">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-atk" data-param="atk">atk<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="atkSlider" min="0" max="300" value="6" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="atkVal">6ms</span>
           </div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">det</span>
+          <div class="ctrl-row slider" data-lfo="det">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-det" data-param="det">det<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="detSlider" min="0" max="50" value="0" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="detVal">0¢</span>
           </div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">pan</span>
+          <div class="ctrl-row slider" data-lfo="pan">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-pan" data-param="pan">pan<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="panSlider" min="-50" max="50" value="0" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="panVal">C</span>
           </div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">cut</span>
+          <div class="ctrl-row slider" data-lfo="cut">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-cut" data-param="cut">cut<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="cutSlider" min="0" max="100" value="100" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="cutVal">open</span>
           </div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">res</span>
+          <div class="ctrl-row slider" data-lfo="res">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-res" data-param="res">res<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="resSlider" min="0" max="100" value="0" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="resVal">1.0</span>
           </div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">dst</span>
+          <div class="ctrl-row slider" data-lfo="dst">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-dst" data-param="dst">dst<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="dstSlider" min="0" max="100" value="0" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="dstVal">0%</span>
           </div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">dly</span>
+          <div class="ctrl-row slider" data-lfo="dly">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-dly" data-param="dly">dly<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="dlySlider" min="0" max="100" value="0" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="dlyVal">0%</span>
           </div>
-          <div class="ctrl-row slider">
-            <span class="ctrl-key">rev</span>
+          <div class="ctrl-row slider" data-lfo="rev">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-rev" data-param="rev">rev<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
             <input type="range" id="revSlider" min="0" max="100" value="0" step="1">
             <span class="s-brk">►</span>
             <span class="ctrl-val" id="revVal">0%</span>
+          </div>
+          <div class="ctrl-row slider" data-lfo="prb">
+            <span class="ctrl-key lfo-toggle" id="lfo-lbl-prb" data-param="prb">prb<span class="lfo-chev">›</span></span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="probSlider" min="0" max="100" value="100" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="probVal">100%</span>
           </div>
           <div class="ctrl-row" style="margin-top:6px;">
             <button class="tui-btn" id="fxResetBtn1" tabindex="-1">reset fx</button>
@@ -752,14 +790,6 @@
         </div>
       </div>
 
-      <div id="session-area">
-        <div class="panel-rule"></div>
-        <div class="ctrl-row" style="gap:14px; letter-spacing:2px;">
-          <button class="tui-btn" id="saveBtn" tabindex="-1">save</button>
-          <button class="tui-btn" id="loadBtn" tabindex="-1">load</button>
-          <button class="tui-btn" id="shareBtn" tabindex="-1">share</button>
-        </div>
-      </div>
       <div class="panel-rule"></div>
       <div class="footer">
         <div id="legend"></div>
@@ -840,11 +870,24 @@ let reverbNode = null, reverbOutGain = null;
 let globalHPF = null, globalLPF = null;
 let globalReverbSendNode = null;
 
-function distCurve(amount) {
+function distCurve(amount, shape = 'soft') {
   const n = 256, curve = new Float32Array(n), k = amount * 200;
   for (let i = 0; i < n; i++) {
     const x = (i * 2) / n - 1;
-    curve[i] = k === 0 ? x : (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+    if (shape === 'hard') {
+      curve[i] = k === 0 ? x : Math.max(-1, Math.min(1, x * (1 + k / 50)));
+    } else if (shape === 'fuzz') {
+      if (k === 0) { curve[i] = x; continue; }
+      const drive = 1 + k / 30;
+      curve[i] = Math.tanh(x * drive) / Math.tanh(drive);
+    } else if (shape === 'fold') {
+      let v = x * (1 + k / 50);
+      let iter = 0;
+      while (Math.abs(v) > 1 && iter++ < 16) v = v > 1 ? 2 - v : -2 - v;
+      curve[i] = v;
+    } else {
+      curve[i] = k === 0 ? x : (Math.PI + k) * x / (Math.PI + k * Math.abs(x));
+    }
   }
   return curve;
 }
@@ -1102,6 +1145,11 @@ const FX = {
   distortion:    0,
   delaySend:     0,
   reverbSend:    0,
+  prob:          1.0,
+  lfo:           {},
+  adsr:          null,
+  dstShape:      'soft',
+  ratchet:       1,
   reverbLevel:   0.7,
   hpfCutoff:     20,
   lpfCutoff:     20000,
@@ -1245,6 +1293,7 @@ function clearSel() {
   if (selR >= 0) cellEls[selR]?.[selC]?.classList.remove('sel');
   selR = -1; selC = -1;
   updateSelLabel();
+  EXPAND_PARAMS.forEach(p => updateLfoActive(p));
 }
 
 function updateSelLabel() {
@@ -1285,11 +1334,334 @@ function updateSelLabel() {
   gridEl.appendChild(colLbl);
 }
 
+/* ── LFO helpers ────────────────────────────────────── */
+const LFO_PARAMS    = ['det','pan','cut','res','dly','rev'];
+const ALT_PARAMS    = ['atk','dst','prb'];
+const EXPAND_PARAMS = [...LFO_PARAMS, ...ALT_PARAMS];
+
+function ensureNoteLfo(note) {
+  if (note && !note.lfo) note.lfo = {};
+}
+
+function updateLfoActive(param) {
+  const lbl = document.getElementById(`lfo-lbl-${param}`);
+  if (!lbl) return;
+  const note = (selR >= 0 && S.cells[selR]?.[selC]) ? S.cells[selR][selC] : null;
+  let active = false;
+  if (param === 'atk') {
+    active = !!(note?.adsr ?? FX.adsr);
+  } else if (param === 'dst') {
+    active = (note?.dstShape ?? FX.dstShape ?? 'soft') !== 'soft';
+  } else if (param === 'prb') {
+    active = (note?.ratchet ?? FX.ratchet ?? 1) > 1;
+  } else {
+    const d = (note?.lfo ?? FX.lfo)[param];
+    active = !!(d && d.rate > 0 && d.depth > 0);
+    if (active) lbl.style.animationDuration = `${1 / d.rate}s`;
+  }
+  lbl.classList.toggle('lfo-active', active);
+}
+
+function reflectLfoDefaults() {
+  LFO_PARAMS.forEach(param => {
+    const d = FX.lfo[param] || {};
+    const rate = d.rate ?? 0, depth = d.depth ?? 0, shape = d.shape ?? 'sine';
+    const rEl = document.getElementById(`lfo-${param}-rate`);
+    if (!rEl) return;
+    rEl.value = Math.round(rate * 10);
+    document.getElementById(`lfo-${param}-rate-val`).textContent = rate === 0 ? 'off' : `${rate.toFixed(1)}Hz`;
+    document.getElementById(`lfo-${param}-depth`).value = Math.round(depth * 100);
+    document.getElementById(`lfo-${param}-depth-val`).textContent = `${Math.round(depth * 100)}%`;
+    document.getElementById(`lfo-panel-${param}`)
+      ?.querySelectorAll('.lfo-shape')
+      .forEach(b => b.classList.toggle('sel', b.dataset.shape === shape));
+    updateLfoActive(param);
+  });
+  document.getElementById('lfo-panel-atk')?._draw?.();
+  document.getElementById('lfo-panel-dst')?.querySelectorAll('.dst-shape').forEach(b => b.classList.toggle('sel', b.dataset.shape === (FX.dstShape ?? 'soft')));
+  document.getElementById('lfo-panel-prb')?.querySelectorAll('.rtc-btn').forEach(b => b.classList.toggle('sel', +b.dataset.ratchet === (FX.ratchet ?? 1)));
+  updateLfoActive('atk'); updateLfoActive('dst'); updateLfoActive('prb');
+}
+
+function buildLfoPanels() {
+  function toggleOpen(param, panel, row) {
+    const opening = !panel.classList.contains('open');
+    EXPAND_PARAMS.forEach(p => {
+      if (p === param) return;
+      const op = document.getElementById(`lfo-panel-${p}`);
+      if (op?.classList.contains('open')) {
+        op.classList.remove('open');
+        document.querySelector(`.ctrl-row[data-lfo="${p}"] .lfo-toggle`)?.classList.remove('open');
+      }
+    });
+    panel.classList.toggle('open', opening);
+    row.querySelector('.lfo-toggle').classList.toggle('open', opening);
+  }
+
+  // LFO-compatible params
+  LFO_PARAMS.forEach(param => {
+    const row = document.querySelector(`.ctrl-row[data-lfo="${param}"]`);
+    if (!row) return;
+    const panel = document.createElement('div');
+    panel.className = 'lfo-panel';
+    panel.id = `lfo-panel-${param}`;
+    panel.innerHTML = `
+      <div class="ctrl-row slider">
+        <span class="lfo-sub-key">rate</span>
+        <span class="s-brk">◄</span>
+        <input type="range" id="lfo-${param}-rate" min="0" max="200" value="0" step="1">
+        <span class="s-brk">►</span>
+        <span class="ctrl-val" id="lfo-${param}-rate-val" style="min-width:42px">off</span>
+      </div>
+      <div class="ctrl-row slider">
+        <span class="lfo-sub-key">dpt</span>
+        <span class="s-brk">◄</span>
+        <input type="range" id="lfo-${param}-depth" min="0" max="100" value="0" step="1">
+        <span class="s-brk">►</span>
+        <span class="ctrl-val" id="lfo-${param}-depth-val" style="min-width:42px">0%</span>
+      </div>
+      <div class="ctrl-row" style="gap:4px;align-items:center;">
+        <span class="lfo-sub-key">shp</span>
+        <button class="tui-btn lfo-shape sel" data-param="${param}" data-shape="sine"     tabindex="-1">sin</button>
+        <button class="tui-btn lfo-shape"     data-param="${param}" data-shape="triangle" tabindex="-1">tri</button>
+        <button class="tui-btn lfo-shape"     data-param="${param}" data-shape="square"   tabindex="-1">sqr</button>
+        <button class="tui-btn lfo-shape"     data-param="${param}" data-shape="sawtooth" tabindex="-1">saw</button>
+      </div>`;
+    row.insertAdjacentElement('afterend', panel);
+    row.querySelector('.lfo-toggle').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!fxLocked) { fxLocked = true; if (!shiftActive) openShiftPanel(); }
+      toggleOpen(param, panel, row);
+    });
+    document.getElementById(`lfo-${param}-rate`).addEventListener('input', function () {
+      const rate = this.value / 10;
+      document.getElementById(`lfo-${param}-rate-val`).textContent = rate === 0 ? 'off' : `${rate.toFixed(1)}Hz`;
+      if (!FX.lfo[param]) FX.lfo[param] = { rate: 0, depth: 0, shape: 'sine' };
+      FX.lfo[param].rate = rate;
+      const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
+      if (note) { ensureNoteLfo(note); if (!note.lfo[param]) note.lfo[param] = { rate: 0, depth: 0, shape: 'sine' }; note.lfo[param].rate = rate; }
+      updateLfoActive(param);
+    });
+    document.getElementById(`lfo-${param}-depth`).addEventListener('input', function () {
+      const depth = this.value / 100;
+      document.getElementById(`lfo-${param}-depth-val`).textContent = `${this.value}%`;
+      if (!FX.lfo[param]) FX.lfo[param] = { rate: 0, depth: 0, shape: 'sine' };
+      FX.lfo[param].depth = depth;
+      const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
+      if (note) { ensureNoteLfo(note); if (!note.lfo[param]) note.lfo[param] = { rate: 0, depth: 0, shape: 'sine' }; note.lfo[param].depth = depth; }
+      updateLfoActive(param);
+    });
+    panel.querySelectorAll('.lfo-shape').forEach(btn => {
+      btn.addEventListener('click', () => {
+        panel.querySelectorAll('.lfo-shape').forEach(b => b.classList.remove('sel'));
+        btn.classList.add('sel');
+        const shape = btn.dataset.shape;
+        if (!FX.lfo[param]) FX.lfo[param] = { rate: 0, depth: 0, shape: 'sine' };
+        FX.lfo[param].shape = shape;
+        const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
+        if (note) { ensureNoteLfo(note); if (!note.lfo[param]) note.lfo[param] = { rate: 0, depth: 0, shape: 'sine' }; note.lfo[param].shape = shape; }
+      });
+    });
+  });
+
+  // atk — ADSR envelope editor
+  (() => {
+    const param = 'atk';
+    const row = document.querySelector(`.ctrl-row[data-lfo="${param}"]`);
+    if (!row) return;
+    const panel = document.createElement('div');
+    panel.className = 'lfo-panel';
+    panel.id = `lfo-panel-${param}`;
+    const CV_W = 200, CV_H = 68, T_MAX = 2.0, PAD = 10;
+    const DW = CV_W - PAD * 2, DH = CV_H - PAD * 2;
+    panel.innerHTML = `<canvas id="adsr-cv" width="${CV_W}" height="${CV_H}" style="display:block;width:100%;cursor:crosshair;"></canvas>`;
+    row.insertAdjacentElement('afterend', panel);
+    const cv = document.getElementById('adsr-cv');
+    const DFLT_ADSR = { a: 0.02, d: 0.10, s: 0.70, h: 0.20, r: 0.08 };
+
+    function currentAdsr() {
+      const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
+      return note?.adsr ? { ...note.adsr } : FX.adsr ? { ...FX.adsr } : { ...DFLT_ADSR };
+    }
+    function saveAdsr(adsr) {
+      FX.adsr = { ...adsr };
+      const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
+      if (note) note.adsr = { ...adsr };
+      updateLfoActive(param);
+    }
+    function toPoints(adsr) {
+      const sc = DW / T_MAX;
+      const py = PAD + (1 - Math.max(0.01, Math.min(0.99, adsr.s))) * DH;
+      return [
+        [PAD,                                                              PAD + DH],
+        [PAD + adsr.a * sc,                                                PAD],
+        [PAD + (adsr.a + adsr.d) * sc,                                    py],
+        [PAD + (adsr.a + adsr.d + adsr.h) * sc,                           py],
+        [Math.min(PAD + DW, PAD + (adsr.a + adsr.d + adsr.h + adsr.r) * sc), PAD + DH],
+      ];
+    }
+    function draw() {
+      const adsr = currentAdsr();
+      const ctx = cv.getContext('2d');
+      ctx.clearRect(0, 0, CV_W, CV_H);
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#fff';
+
+      // faint grid lines (within padded area)
+      ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 1; i < 4; i++) { const x = PAD + DW * i / 4; ctx.moveTo(x, PAD); ctx.lineTo(x, PAD + DH); }
+      for (let i = 1; i < 4; i++) { const y = PAD + DH * i / 4; ctx.moveTo(PAD, y); ctx.lineTo(PAD + DW, y); }
+      ctx.stroke();
+
+      // curve
+      const p = toPoints(adsr);
+      ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
+      ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
+      for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
+      ctx.stroke();
+
+      // corner brackets
+      const bk = 5;
+      ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(bk, 0); ctx.lineTo(0, 0); ctx.lineTo(0, bk);
+      ctx.moveTo(CV_W - bk, 0); ctx.lineTo(CV_W, 0); ctx.lineTo(CV_W, bk);
+      ctx.moveTo(0, CV_H - bk); ctx.lineTo(0, CV_H); ctx.lineTo(bk, CV_H);
+      ctx.moveTo(CV_W - bk, CV_H); ctx.lineTo(CV_W, CV_H); ctx.lineTo(CV_W, CV_H - bk);
+      ctx.stroke();
+
+      // handles — no glow
+      ctx.fillStyle = accent;
+      const hr = 4.5;
+      [1, 2, 3, 4].forEach(i => {
+        ctx.beginPath(); ctx.arc(p[i][0], p[i][1], hr, 0, Math.PI * 2); ctx.fill();
+      });
+    }
+    panel._draw = draw;
+
+    function evPos(e) {
+      const r = cv.getBoundingClientRect(), src = e.touches ? e.touches[0] : e;
+      return [(src.clientX - r.left) * (CV_W / r.width), (src.clientY - r.top) * (CV_H / r.height)];
+    }
+    const MIN_S = 4 / (DW / T_MAX);
+    let dragIdx = null;
+    function hitTest(mx, my) {
+      const p = toPoints(currentAdsr());
+      for (const i of [1, 2, 3, 4]) {
+        if (Math.abs(mx - p[i][0]) <= 10 && Math.abs(my - p[i][1]) <= 10) return i;
+      }
+      return null;
+    }
+    function clp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
+    function applyDrag(idx, mx, my) {
+      let a = currentAdsr();
+      const sc = DW / T_MAX;
+      const t = clp((mx - PAD) / sc, 0, T_MAX);
+      if (idx === 1) {
+        const p2t = a.a + a.d;
+        const na = clp(t, MIN_S, p2t - MIN_S);
+        a = { ...a, a: na, d: Math.max(MIN_S, p2t - na) };
+      } else if (idx === 2) {
+        const p3t = a.a + a.d + a.h;
+        const nd = clp(t - a.a, MIN_S, p3t - a.a - MIN_S);
+        a = { ...a, d: nd, h: Math.max(MIN_S, p3t - a.a - nd), s: clp(1 - (my - PAD) / DH, 0.01, 0.99) };
+      } else if (idx === 3) {
+        const p4t = a.a + a.d + a.h + a.r;
+        const nh = clp(t - a.a - a.d, MIN_S, p4t - a.a - a.d - MIN_S);
+        a = { ...a, h: nh, r: Math.max(MIN_S, p4t - a.a - a.d - nh) };
+      } else if (idx === 4) {
+        a = { ...a, r: clp(t - a.a - a.d - a.h, MIN_S, T_MAX - a.a - a.d - a.h) };
+      }
+      saveAdsr(a); draw();
+    }
+    cv.addEventListener('mousedown', e => { dragIdx = hitTest(...evPos(e)); if (dragIdx !== null) e.preventDefault(); });
+    window.addEventListener('mousemove', e => { if (dragIdx !== null) applyDrag(dragIdx, ...evPos(e)); });
+    window.addEventListener('mouseup', () => { dragIdx = null; });
+    cv.addEventListener('touchstart', e => { dragIdx = hitTest(...evPos(e)); if (dragIdx !== null) e.preventDefault(); }, { passive: false });
+    cv.addEventListener('touchmove', e => { if (dragIdx === null) return; e.preventDefault(); applyDrag(dragIdx, ...evPos(e)); }, { passive: false });
+    cv.addEventListener('touchend', () => { dragIdx = null; });
+    row.querySelector('.lfo-toggle').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!fxLocked) { fxLocked = true; if (!shiftActive) openShiftPanel(); }
+      toggleOpen(param, panel, row);
+      if (panel.classList.contains('open')) draw();
+    });
+  })();
+
+  // dst — curve shape
+  (() => {
+    const param = 'dst';
+    const row = document.querySelector(`.ctrl-row[data-lfo="${param}"]`);
+    if (!row) return;
+    const panel = document.createElement('div');
+    panel.className = 'lfo-panel';
+    panel.id = `lfo-panel-${param}`;
+    panel.innerHTML = `
+      <div class="ctrl-row" style="gap:4px;align-items:center;">
+        <span class="lfo-sub-key">shp</span>
+        <button class="tui-btn dst-shape sel" data-shape="soft" tabindex="-1">sft</button>
+        <button class="tui-btn dst-shape"     data-shape="hard" tabindex="-1">hrd</button>
+        <button class="tui-btn dst-shape"     data-shape="fuzz" tabindex="-1">fzz</button>
+        <button class="tui-btn dst-shape"     data-shape="fold" tabindex="-1">fld</button>
+      </div>`;
+    row.insertAdjacentElement('afterend', panel);
+    row.querySelector('.lfo-toggle').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!fxLocked) { fxLocked = true; if (!shiftActive) openShiftPanel(); }
+      toggleOpen(param, panel, row);
+    });
+    panel.querySelectorAll('.dst-shape').forEach(btn => {
+      btn.addEventListener('click', () => {
+        panel.querySelectorAll('.dst-shape').forEach(b => b.classList.remove('sel'));
+        btn.classList.add('sel');
+        const shape = btn.dataset.shape;
+        FX.dstShape = shape;
+        const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
+        if (note) note.dstShape = shape;
+        updateLfoActive(param);
+      });
+    });
+  })();
+
+  // prb — ratchet
+  (() => {
+    const param = 'prb';
+    const row = document.querySelector(`.ctrl-row[data-lfo="${param}"]`);
+    if (!row) return;
+    const panel = document.createElement('div');
+    panel.className = 'lfo-panel';
+    panel.id = `lfo-panel-${param}`;
+    panel.innerHTML = `
+      <div class="ctrl-row" style="gap:4px;align-items:center;">
+        <span class="lfo-sub-key">rtc</span>
+        <button class="tui-btn rtc-btn sel" data-ratchet="1" tabindex="-1">×1</button>
+        <button class="tui-btn rtc-btn"     data-ratchet="2" tabindex="-1">×2</button>
+        <button class="tui-btn rtc-btn"     data-ratchet="3" tabindex="-1">×3</button>
+        <button class="tui-btn rtc-btn"     data-ratchet="4" tabindex="-1">×4</button>
+      </div>`;
+    row.insertAdjacentElement('afterend', panel);
+    row.querySelector('.lfo-toggle').addEventListener('click', e => {
+      e.stopPropagation();
+      if (!fxLocked) { fxLocked = true; if (!shiftActive) openShiftPanel(); }
+      toggleOpen(param, panel, row);
+    });
+    panel.querySelectorAll('.rtc-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        panel.querySelectorAll('.rtc-btn').forEach(b => b.classList.remove('sel'));
+        btn.classList.add('sel');
+        const ratchet = +btn.dataset.ratchet;
+        FX.ratchet = ratchet;
+        const note = selR >= 0 ? S.cells[selR]?.[selC] : null;
+        if (note) note.ratchet = ratchet;
+        updateLfoActive(param);
+      });
+    });
+  })();
+}
+
 function reflectNote(note) {
   document.getElementById('volSlider').value  = note.vol * 100;
   document.getElementById('volVal').textContent = `${Math.round(note.vol * 100)}%`;
-  document.getElementById('decaySlider').value = note.decay * 100;
-  document.getElementById('decayVal').textContent = `${note.decay.toFixed(2)}s`;
   document.querySelectorAll('#waveGroup .tui-btn').forEach(b =>
     b.classList.toggle('sel', b.dataset.wave === note.wave));
   document.getElementById('scaleSelect').value = note.scale;
@@ -1302,6 +1674,7 @@ function reflectNote(note) {
   const dst   = note.distortion  ?? FX.distortion;
   const dSnd  = note.delaySend   ?? FX.delaySend;
   const rSnd  = note.reverbSend  ?? FX.reverbSend;
+  const prb   = note.prob        ?? FX.prob;
 
   document.getElementById('atkSlider').value = Math.round(atk * 1000);
   document.getElementById('atkVal').textContent = `${Math.round(atk * 1000)}ms`;
@@ -1326,12 +1699,38 @@ function reflectNote(note) {
   document.getElementById('dlyVal').textContent = `${Math.round(dSnd * 100)}%`;
   document.getElementById('revSlider').value = Math.round(rSnd * 100);
   document.getElementById('revVal').textContent = `${Math.round(rSnd * 100)}%`;
+  document.getElementById('probSlider').value = Math.round(prb * 100);
+  document.getElementById('probVal').textContent = `${Math.round(prb * 100)}%`;
+
+  // LFO panels
+  LFO_PARAMS.forEach(param => {
+    const d = note.lfo?.[param] || {};
+    const rate = d.rate ?? 0, depth = d.depth ?? 0, shape = d.shape ?? 'sine';
+    const rEl = document.getElementById(`lfo-${param}-rate`);
+    if (!rEl) return;
+    rEl.value = Math.round(rate * 10);
+    document.getElementById(`lfo-${param}-rate-val`).textContent = rate === 0 ? 'off' : `${rate.toFixed(1)}Hz`;
+    document.getElementById(`lfo-${param}-depth`).value = Math.round(depth * 100);
+    document.getElementById(`lfo-${param}-depth-val`).textContent = `${Math.round(depth * 100)}%`;
+    document.getElementById(`lfo-panel-${param}`)
+      ?.querySelectorAll('.lfo-shape')
+      .forEach(b => b.classList.toggle('sel', b.dataset.shape === shape));
+    updateLfoActive(param);
+  });
+  // Alt panels
+  document.getElementById('lfo-panel-atk')?._draw?.();
+  const dshape  = note.dstShape  ?? FX.dstShape  ?? 'soft';
+  document.getElementById('lfo-panel-dst')?.querySelectorAll('.dst-shape').forEach(b => b.classList.toggle('sel', b.dataset.shape === dshape));
+  const ratch   = note.ratchet   ?? FX.ratchet   ?? 1;
+  document.getElementById('lfo-panel-prb')?.querySelectorAll('.rtc-btn').forEach(b => b.classList.toggle('sel', +b.dataset.ratchet === ratch));
+  updateLfoActive('atk'); updateLfoActive('dst'); updateLfoActive('prb');
 }
 
 /* ── Audio ──────────────────────────────────────────── */
 function playTone(freq, note, when) {
-  const dur   = note.decay;
-  const atk   = Math.max(note.attack     ?? FX.attack,      0.001);
+  const adsr_ = note.adsr ?? FX.adsr ?? null;
+  const dur   = adsr_ ? (adsr_.a + adsr_.d + adsr_.h + adsr_.r) : note.decay;
+  const atk   = adsr_ ? Math.max(adsr_.a, 0.001) : Math.max(note.attack ?? FX.attack, 0.001);
   const det   = note.detune              ?? FX.detune;
   const cut   = note.cutoff              ?? FX.cutoff;
   const res   = note.resonance           ?? FX.resonance;
@@ -1354,14 +1753,23 @@ function playTone(freq, note, when) {
   filt.frequency.value = cut;
   filt.Q.value = res;
 
-  dist.curve = distCurve(dst);
+  dist.curve = distCurve(dst, note.dstShape ?? FX.dstShape ?? 'soft');
   dist.oversample = '2x';
 
   const pk = note.vol * 0.7;
   gain.gain.setValueAtTime(0, when);
-  gain.gain.linearRampToValueAtTime(pk, when + atk);
-  gain.gain.exponentialRampToValueAtTime(pk * 0.36, when + atk + 0.054);
-  gain.gain.exponentialRampToValueAtTime(0.001, when + dur);
+  if (adsr_) {
+    const sus = Math.max(0.001, Math.min(0.999, adsr_.s));
+    const dEnd = adsr_.a + adsr_.d, hEnd = dEnd + adsr_.h;
+    gain.gain.linearRampToValueAtTime(pk, when + atk);
+    gain.gain.exponentialRampToValueAtTime(pk * sus, when + Math.max(atk + 0.001, dEnd));
+    gain.gain.setValueAtTime(pk * sus, when + hEnd);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + dur);
+  } else {
+    gain.gain.linearRampToValueAtTime(pk, when + atk);
+    gain.gain.exponentialRampToValueAtTime(pk * 0.36, when + atk + 0.054);
+    gain.gain.exponentialRampToValueAtTime(0.001, when + dur);
+  }
 
   osc.connect(gain);
   gain.connect(filt);
@@ -1369,21 +1777,44 @@ function playTone(freq, note, when) {
   dist.connect(panner);
   panner.connect(master);
 
-  if (dSend > 0) {
+  // helper: spawn one LFO oscillator connected to an AudioParam
+  function spawnLfo(param, audioParam, depthScale) {
+    const d = note.lfo?.[param];
+    if (!d || d.rate <= 0 || d.depth <= 0) return;
+    const lfoOsc  = audioCtx.createOscillator();
+    const lfoGain = audioCtx.createGain();
+    lfoOsc.type = d.shape || 'sine';
+    lfoOsc.frequency.value = d.rate;
+    lfoGain.gain.value = d.depth * depthScale;
+    lfoOsc.connect(lfoGain);
+    lfoGain.connect(audioParam);
+    lfoOsc.start(when);
+    lfoOsc.stop(when + dur + 0.1);
+  }
+
+  const dlyLfo = note.lfo?.dly, revLfo = note.lfo?.rev;
+  if (dSend > 0 || (dlyLfo?.rate > 0 && dlyLfo?.depth > 0)) {
     const dg = audioCtx.createGain();
     dg.gain.value = dSend;
     dist.connect(dg);
     dg.connect(delayNode);
+    spawnLfo('dly', dg.gain, 1);
   }
-  if (rSend > 0) {
+  if (rSend > 0 || (revLfo?.rate > 0 && revLfo?.depth > 0)) {
     const rg = audioCtx.createGain();
     rg.gain.value = rSend;
     dist.connect(rg);
     rg.connect(reverbNode);
+    spawnLfo('rev', rg.gain, 1);
   }
 
   osc.start(when);
   osc.stop(when + dur + 0.02);
+
+  spawnLfo('cut', filt.frequency, cut);
+  spawnLfo('res', filt.Q,         4);
+  spawnLfo('pan', panner.pan,     1);
+  spawnLfo('det', osc.detune,     50);
 
   if (det > 0) {
     const osc2  = audioCtx.createOscillator();
@@ -1392,9 +1823,18 @@ function playTone(freq, note, when) {
     osc2.frequency.value = freq;
     osc2.detune.value = det;
     gain2.gain.setValueAtTime(0, when);
-    gain2.gain.linearRampToValueAtTime(pk * 0.55, when + atk);
-    gain2.gain.exponentialRampToValueAtTime(pk * 0.55 * 0.36, when + atk + 0.054);
-    gain2.gain.exponentialRampToValueAtTime(0.001, when + dur);
+    if (adsr_) {
+      const sus = Math.max(0.001, Math.min(0.999, adsr_.s));
+      const dEnd = adsr_.a + adsr_.d, hEnd = dEnd + adsr_.h;
+      gain2.gain.linearRampToValueAtTime(pk * 0.55, when + atk);
+      gain2.gain.exponentialRampToValueAtTime(pk * 0.55 * sus, when + Math.max(atk + 0.001, dEnd));
+      gain2.gain.setValueAtTime(pk * 0.55 * sus, when + hEnd);
+      gain2.gain.exponentialRampToValueAtTime(0.001, when + dur);
+    } else {
+      gain2.gain.linearRampToValueAtTime(pk * 0.55, when + atk);
+      gain2.gain.exponentialRampToValueAtTime(pk * 0.55 * 0.36, when + atk + 0.054);
+      gain2.gain.exponentialRampToValueAtTime(0.001, when + dur);
+    }
     osc2.connect(gain2);
     gain2.connect(filt);  // shares the per-note filter/dist chain
     osc2.start(when);
@@ -1414,7 +1854,11 @@ function tick() {
     for (let r = 0; r < ROWS; r++) {
       if (mutedRows.has(r)) continue;
       const note = S.cells[r][step];
-      if (note) playTone(freqFor(note.scale, r), note, when);
+      if (note && Math.random() < (note.prob ?? 1.0)) {
+        const ratchet = note.ratchet ?? FX.ratchet ?? 1;
+        const sd = stepDur();
+        for (let ri = 0; ri < ratchet; ri++) playTone(freqFor(note.scale, r), note, when + ri * sd / ratchet);
+      }
     }
     const delay = Math.max(0, (when - audioCtx.currentTime) * 1000);
     setTimeout(() => advancePlayhead(step), delay);
@@ -1474,7 +1918,8 @@ function makeNote() {
     wave: S.wave, vol: S.volume, decay: S.decay, scale: S.scale,
     attack: FX.attack, detune: FX.detune,
     cutoff: FX.cutoff, resonance: FX.resonance, distortion: FX.distortion,
-    delaySend: FX.delaySend, reverbSend: FX.reverbSend,
+    delaySend: FX.delaySend, reverbSend: FX.reverbSend, prob: FX.prob, lfo: {},
+    adsr: FX.adsr ? { ...FX.adsr } : null, dstShape: FX.dstShape, ratchet: FX.ratchet,
   };
 }
 
@@ -1686,11 +2131,6 @@ document.getElementById('volSlider').addEventListener('input', function () {
   document.getElementById('volVal').textContent = `${this.value}%`;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].vol = S.volume;
 });
-document.getElementById('decaySlider').addEventListener('input', function () {
-  S.decay = this.value / 100;
-  document.getElementById('decayVal').textContent = `${S.decay.toFixed(2)}s`;
-  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].decay = S.decay;
-});
 document.getElementById('scaleSelect').addEventListener('change', function () {
   S.scale = this.value;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].scale = S.scale;
@@ -1840,6 +2280,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
       delaySend:  rng() < 0.18 ? rngR(0.05, 0.18) : gDelay,
       reverbSend: rngR(0.12 + (1 - t) * 0.1, 0.30 + (1 - t) * 0.2),
       pan:        usePan ? Math.round(rngR(12, 38)) * (rng() < 0.5 ? -1 : 1) : 0,
+      prob:       rngR(0.55, 1.0),
     };
   }
 
@@ -1931,7 +2372,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
       S.cells[bassRow][c] = {
         wave: pick(['sine','sine','triangle']),
         vol: rngR(0.25, 0.48), decay: rngR(0.7, 1.5),
-        scale: chosenScale, ...noteFx(bassRow),
+        scale: chosenScale, ...noteFx(bassRow), prob: rngR(0.75, 1.0),
       };
       colCount[c]++;
     }
@@ -1946,7 +2387,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
       if (S.cells[r][c] || colCount[c] >= MAX_VOICES) continue;
       S.cells[r][c] = {
         wave: 'sine', vol: rngR(0.08, 0.20), decay: rngR(0.3, 0.6),
-        scale: chosenScale, ...noteFx(r),
+        scale: chosenScale, ...noteFx(r), prob: rngR(0.30, 0.60),
       };
     }
   }
@@ -2023,6 +2464,7 @@ const HELP_COLS = [
   ['row',  'dst',   'distortion'],
   ['row',  'dly',   'delay send'],
   ['row',  'rev',   'reverb send'],
+  ['row',  'prb',   'trigger probability'],
   ['gap'],
   ['head', 'GLOBAL FX (B)', ''],
   ['row',  'rvl',  'reverb output level'],
@@ -2227,7 +2669,7 @@ function openShiftPanel() {
   if (shiftActive) return;
   shiftActive = true;
   document.getElementById('viz-cv').style.display = 'none';
-  document.getElementById('session-area').style.display = 'none';
+  document.getElementById('session-row').style.display = 'none';
   document.getElementById('wave-panel').style.display = 'flex';
   document.getElementById('fx-panel-1').style.display = fxTab === 1 ? 'flex' : 'none';
   document.getElementById('fx-panel-2').style.display = fxTab === 2 ? 'flex' : 'none';
@@ -2242,7 +2684,7 @@ function closeShiftPanel() {
   shiftActive = false;
   fxLocked    = false;
   document.getElementById('viz-cv').style.display = '';
-  document.getElementById('session-area').style.display = '';
+  document.getElementById('session-row').style.display = '';
   document.getElementById('wave-panel').style.display = 'none';
   document.getElementById('shift-hint').style.color = '';
   updateFxTabBtns();
@@ -2359,11 +2801,17 @@ document.getElementById('revSlider').addEventListener('input', function () {
   document.getElementById('revVal').textContent = `${this.value}%`;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].reverbSend = FX.reverbSend;
 });
+document.getElementById('probSlider').addEventListener('input', function () {
+  FX.prob = this.value / 100;
+  document.getElementById('probVal').textContent = `${this.value}%`;
+  if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].prob = FX.prob;
+});
 
 // reset fx — per-note controls only
 document.getElementById('fxResetBtn1').addEventListener('click', () => {
   FX.attack = 0.006; FX.cutoff = 18000; FX.resonance = 1.0;
-  FX.detune = 0; FX.pan = 0; FX.distortion = 0; FX.delaySend = 0; FX.reverbSend = 0;
+  FX.detune = 0; FX.pan = 0; FX.distortion = 0; FX.delaySend = 0; FX.reverbSend = 0; FX.prob = 1.0;
+  FX.lfo = {}; FX.adsr = null; FX.dstShape = 'soft'; FX.ratchet = 1;
 
   document.getElementById('atkSlider').value  = 6;    document.getElementById('atkVal').textContent  = '6ms';
   document.getElementById('detSlider').value  = 0;    document.getElementById('detVal').textContent  = '0¢';
@@ -2373,14 +2821,17 @@ document.getElementById('fxResetBtn1').addEventListener('click', () => {
   document.getElementById('dstSlider').value  = 0;    document.getElementById('dstVal').textContent  = '0%';
   document.getElementById('dlySlider').value  = 0;    document.getElementById('dlyVal').textContent  = '0%';
   document.getElementById('revSlider').value  = 0;    document.getElementById('revVal').textContent  = '0%';
+  document.getElementById('probSlider').value = 100;  document.getElementById('probVal').textContent = '100%';
 
   if (selR >= 0 && S.cells[selR][selC]) {
     const n = S.cells[selR][selC];
-    n.attack = FX.attack;   n.detune     = FX.detune;   n.pan = FX.pan;
-    n.cutoff = FX.cutoff;   n.resonance  = FX.resonance;
+    n.attack = FX.attack; n.detune = FX.detune; n.pan = FX.pan;
+    n.cutoff = FX.cutoff; n.resonance = FX.resonance;
     n.distortion = FX.distortion;
-    n.delaySend  = FX.delaySend;  n.reverbSend = FX.reverbSend;
+    n.delaySend = FX.delaySend; n.reverbSend = FX.reverbSend; n.prob = FX.prob;
+    n.lfo = {}; n.adsr = null; n.dstShape = 'soft'; n.ratchet = 1;
   }
+  reflectLfoDefaults();
 });
 
 // reset fx — global controls only
@@ -2418,6 +2869,7 @@ function serializeState() {
     decay:   S.decay,
     fx:      {...FX},
     accent:  lineColor,
+    mutedRows: [...mutedRows],
   };
 }
 
@@ -2441,6 +2893,9 @@ function syncSlidersFromFX() {
   document.getElementById('dlyVal').textContent = `${Math.round(f.delaySend * 100)}%`;
   document.getElementById('revSlider').value = Math.round(f.reverbSend * 100);
   document.getElementById('revVal').textContent = `${Math.round(f.reverbSend * 100)}%`;
+  const prob = f.prob ?? 1.0;
+  document.getElementById('probSlider').value = Math.round(prob * 100);
+  document.getElementById('probVal').textContent = `${Math.round(prob * 100)}%`;
   document.getElementById('rvlSlider').value = Math.round(f.reverbLevel * 100);
   document.getElementById('rvlVal').textContent = `${Math.round(f.reverbLevel * 100)}%`;
   const hpfSl = Math.round(Math.log(Math.max(f.hpfCutoff, 21) / 20) / Math.log(100) * 100);
@@ -2454,6 +2909,7 @@ function syncSlidersFromFX() {
   document.getElementById('trmVal').textContent = trm === 0 ? 'off' : `${trm.toFixed(1)}Hz`;
   document.getElementById('fdbSlider').value = Math.round(f.delayFeedback * 100);
   document.getElementById('fdbVal').textContent = `${Math.round(f.delayFeedback * 100)}%`;
+  reflectLfoDefaults();
 }
 
 function restoreState(data) {
@@ -2473,14 +2929,22 @@ function restoreState(data) {
   document.getElementById('bpmVal').textContent = S.bpm;
   document.getElementById('volSlider').value = Math.round(S.volume * 100);
   document.getElementById('volVal').textContent = `${Math.round(S.volume * 100)}%`;
-  document.getElementById('decaySlider').value = Math.round(S.decay * 100);
-  document.getElementById('decayVal').textContent = `${S.decay.toFixed(2)}s`;
   document.getElementById('scaleSelect').value = S.scale;
   document.querySelectorAll('#waveGroup .tui-btn').forEach(b =>
     b.classList.toggle('sel', b.dataset.wave === S.wave));
 
   // sync fx sliders
   syncSlidersFromFX();
+
+  // restore muted rows
+  unmuteAll();
+  if (Array.isArray(data.mutedRows)) {
+    data.mutedRows.forEach(r => {
+      mutedRows.add(r);
+      rowPips[r]?.classList.add('muted');
+    });
+    if (mutedRows.size > 0) startMuteIndicator();
+  }
 
   // sync audio nodes if running
   if (audioCtx) {
@@ -2641,6 +3105,7 @@ buildPageBar();
 buildStepBar();
 buildRowBar();
 buildGrid();
+buildLfoPanels();
 updateSelLabel();
 
 // Restore from URL hash — runs after DOM is fully built
