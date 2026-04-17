@@ -1472,9 +1472,10 @@ function buildLfoPanels() {
     const panel = document.createElement('div');
     panel.className = 'lfo-panel';
     panel.id = `lfo-panel-${param}`;
-    const CV_W = 200, CV_H = 68, T_MAX = 2.0, PAD = 10;
-    const DW = CV_W - PAD * 2, DH = CV_H - PAD * 2;
-    panel.innerHTML = `<canvas id="adsr-cv" width="${CV_W}" height="${CV_H}" style="display:block;width:100%;cursor:crosshair;"></canvas>`;
+    const CV_H = window.innerWidth <= 580 ? 90 : 68, T_MAX = 2.0, PAD = 10;
+    const DH = CV_H - PAD * 2;
+    const dpr = window.devicePixelRatio || 1;
+    panel.innerHTML = `<canvas id="adsr-cv" style="display:block;width:100%;height:${CV_H}px;cursor:crosshair;"></canvas>`;
     row.insertAdjacentElement('afterend', panel);
     const cv = document.getElementById('adsr-cv');
     const DFLT_ADSR = { a: 0.02, d: 0.10, s: 0.70, h: 0.20, r: 0.08 };
@@ -1489,32 +1490,37 @@ function buildLfoPanels() {
       if (note) note.adsr = { ...adsr };
       updateLfoActive(param);
     }
-    function toPoints(adsr) {
-      const sc = DW / T_MAX;
+    function toPoints(adsr, dw) {
+      const sc = dw / T_MAX;
       const py = PAD + (1 - Math.max(0.01, Math.min(0.99, adsr.s))) * DH;
       return [
-        [PAD,                                                              PAD + DH],
-        [PAD + adsr.a * sc,                                                PAD],
-        [PAD + (adsr.a + adsr.d) * sc,                                    py],
-        [PAD + (adsr.a + adsr.d + adsr.h) * sc,                           py],
-        [Math.min(PAD + DW, PAD + (adsr.a + adsr.d + adsr.h + adsr.r) * sc), PAD + DH],
+        [PAD,                                                                PAD + DH],
+        [PAD + adsr.a * sc,                                                  PAD],
+        [PAD + (adsr.a + adsr.d) * sc,                                      py],
+        [PAD + (adsr.a + adsr.d + adsr.h) * sc,                             py],
+        [Math.min(PAD + dw, PAD + (adsr.a + adsr.d + adsr.h + adsr.r) * sc), PAD + DH],
       ];
     }
     function draw() {
       const adsr = currentAdsr();
       const ctx = cv.getContext('2d');
-      ctx.clearRect(0, 0, CV_W, CV_H);
+      const cssW = cv.offsetWidth || 200;
+      const dw = cssW - PAD * 2;
+      cv.width  = cssW * dpr;
+      cv.height = CV_H * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, cssW, CV_H);
       const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#fff';
 
       // faint grid lines (within padded area)
       ctx.strokeStyle = 'rgba(255,255,255,0.07)'; ctx.lineWidth = 1;
       ctx.beginPath();
-      for (let i = 1; i < 4; i++) { const x = PAD + DW * i / 4; ctx.moveTo(x, PAD); ctx.lineTo(x, PAD + DH); }
-      for (let i = 1; i < 4; i++) { const y = PAD + DH * i / 4; ctx.moveTo(PAD, y); ctx.lineTo(PAD + DW, y); }
+      for (let i = 1; i < 4; i++) { const x = PAD + dw * i / 4; ctx.moveTo(x, PAD); ctx.lineTo(x, PAD + DH); }
+      for (let i = 1; i < 4; i++) { const y = PAD + DH * i / 4; ctx.moveTo(PAD, y); ctx.lineTo(PAD + dw, y); }
       ctx.stroke();
 
       // curve
-      const p = toPoints(adsr);
+      const p = toPoints(adsr, dw);
       ctx.strokeStyle = accent; ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.moveTo(p[0][0], p[0][1]);
       for (let i = 1; i < p.length; i++) ctx.lineTo(p[i][0], p[i][1]);
@@ -1525,12 +1531,12 @@ function buildLfoPanels() {
       ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 1;
       ctx.beginPath();
       ctx.moveTo(bk, 0); ctx.lineTo(0, 0); ctx.lineTo(0, bk);
-      ctx.moveTo(CV_W - bk, 0); ctx.lineTo(CV_W, 0); ctx.lineTo(CV_W, bk);
+      ctx.moveTo(cssW - bk, 0); ctx.lineTo(cssW, 0); ctx.lineTo(cssW, bk);
       ctx.moveTo(0, CV_H - bk); ctx.lineTo(0, CV_H); ctx.lineTo(bk, CV_H);
-      ctx.moveTo(CV_W - bk, CV_H); ctx.lineTo(CV_W, CV_H); ctx.lineTo(CV_W, CV_H - bk);
+      ctx.moveTo(cssW - bk, CV_H); ctx.lineTo(cssW, CV_H); ctx.lineTo(cssW, CV_H - bk);
       ctx.stroke();
 
-      // handles — no glow
+      // handles
       ctx.fillStyle = accent;
       const hr = 4.5;
       [1, 2, 3, 4].forEach(i => {
@@ -1541,12 +1547,12 @@ function buildLfoPanels() {
 
     function evPos(e) {
       const r = cv.getBoundingClientRect(), src = e.touches ? e.touches[0] : e;
-      return [(src.clientX - r.left) * (CV_W / r.width), (src.clientY - r.top) * (CV_H / r.height)];
+      return [src.clientX - r.left, src.clientY - r.top];
     }
-    const MIN_S = 4 / (DW / T_MAX);
     let dragIdx = null;
     function hitTest(mx, my) {
-      const p = toPoints(currentAdsr());
+      const dw = cv.offsetWidth - PAD * 2;
+      const p = toPoints(currentAdsr(), dw);
       for (const i of [1, 2, 3, 4]) {
         if (Math.abs(mx - p[i][0]) <= 10 && Math.abs(my - p[i][1]) <= 10) return i;
       }
@@ -1555,7 +1561,9 @@ function buildLfoPanels() {
     function clp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
     function applyDrag(idx, mx, my) {
       let a = currentAdsr();
-      const sc = DW / T_MAX;
+      const dw = cv.offsetWidth - PAD * 2;
+      const MIN_S = 4 / (dw / T_MAX);
+      const sc = dw / T_MAX;
       const t = clp((mx - PAD) / sc, 0, T_MAX);
       if (idx === 1) {
         const p2t = a.a + a.d;
