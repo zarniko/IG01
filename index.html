@@ -1200,16 +1200,8 @@ function updateSelLabel() {
   if (selR < 0) return;
 
   const gridEl = document.getElementById('grid');
-  const cellPx = parseFloat(getComputedStyle(gridEl).getPropertyValue('--cell')) || 38;
+  const cellPx = cellEls[0][0].offsetWidth || 38;
   const GAP = 3, PAD = 4;
-  // top-left corner of cell (r,c) relative to grid element (inside border)
-  function cellOrigin(r, c) {
-    return {
-      x: PAD + c * (cellPx + GAP),
-      y: PAD + r * (cellPx + GAP),
-    };
-  }
-
   const cells = S.cells;
 
   // center of cell (r,c) relative to grid element
