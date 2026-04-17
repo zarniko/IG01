@@ -324,7 +324,6 @@
       -webkit-appearance: none; appearance: none;
       width: 9px; height: 9px; border-radius: 50%;
       background: var(--accent); cursor: pointer;
-      box-shadow: 0 0 5px var(--accent);
     }
 
     /* toggle buttons */
@@ -458,12 +457,10 @@
       }
       input[type=range]::-webkit-slider-thumb {
         width: 22px; height: 22px;
-        box-shadow: 0 0 8px var(--accent), 0 0 16px var(--accent);
       }
       input[type=range]::-moz-range-thumb {
         width: 22px; height: 22px; border-radius: 50%; border: none;
         background: var(--accent);
-        box-shadow: 0 0 8px var(--accent), 0 0 16px var(--accent);
       }
       input[type=range]::-moz-range-track {
         height: 3px; background: rgba(255,255,255,0.22); border-radius: 2px;
@@ -1251,16 +1248,13 @@ function clearSel() {
 }
 
 function updateSelLabel() {
-  // remove old overlays
   document.querySelectorAll('.sel-lbl').forEach(el => el.remove());
   if (selR < 0) return;
 
   const gridEl = document.getElementById('grid');
   const cellPx = cellEls[0][0].offsetWidth || 38;
   const GAP = 3, PAD = 4;
-  const cells = S.cells;
 
-  // center of cell (r,c) relative to grid element
   function cellCenter(r, c) {
     return {
       x: PAD + c * (cellPx + GAP) + cellPx / 2,
@@ -1268,31 +1262,25 @@ function updateSelLabel() {
     };
   }
 
-  const selCenter = cellCenter(selR, selC);
-
-  // ── row label: centered in adjacent left or right cell ───
+  // Row label (selR+1): centered in left neighbor, or right if at col 0
   const rowLbl = document.createElement('span');
   rowLbl.className = 'sel-lbl';
   rowLbl.textContent = `${selR + 1}`;
-  const useLeft = selC > 0 && !cells[selR][selC - 1];
-  const rowNeighborCenter = useLeft
-    ? cellCenter(selR, selC - 1)
-    : cellCenter(selR, selC + 1);
-  rowLbl.style.left = `${rowNeighborCenter.x}px`;
-  rowLbl.style.top  = `${rowNeighborCenter.y}px`;
+  const rowNeighborC = selC > 0 ? selC - 1 : selC + 1;
+  const rowPt = cellCenter(selR, rowNeighborC);
+  rowLbl.style.left = `${rowPt.x}px`;
+  rowLbl.style.top  = `${rowPt.y}px`;
   rowLbl.style.transform = 'translate(-50%, -50%)';
   gridEl.appendChild(rowLbl);
 
-  // ── col label: centered in adjacent above or below cell ──
+  // Col label (selC+1): centered in top neighbor, or bottom if at row 0
   const colLbl = document.createElement('span');
   colLbl.className = 'sel-lbl';
   colLbl.textContent = `${selC + 1}`;
-  const useTop = selR > 0 && !cells[selR - 1][selC];
-  const colNeighborCenter = useTop
-    ? cellCenter(selR - 1, selC)
-    : cellCenter(selR + 1, selC);
-  colLbl.style.left = `${colNeighborCenter.x}px`;
-  colLbl.style.top  = `${colNeighborCenter.y}px`;
+  const colNeighborR = selR > 0 ? selR - 1 : selR + 1;
+  const colPt = cellCenter(colNeighborR, selC);
+  colLbl.style.left = `${colPt.x}px`;
+  colLbl.style.top  = `${colPt.y}px`;
   colLbl.style.transform = 'translate(-50%, -50%)';
   gridEl.appendChild(colLbl);
 }
@@ -2095,23 +2083,6 @@ function showHelp() {
     background: 'radial-gradient(ellipse at center,transparent 50%,rgba(0,0,0,0.65) 100%)',
   });
   ov.appendChild(vg);
-
-  // close hint — anchored to the exact screen position of #hbtn
-  const hbtnRect = document.getElementById('hbtn').getBoundingClientRect();
-  const esc = document.createElement('div');
-  esc.textContent = 'help(h)';
-  Object.assign(esc.style, {
-    position: 'fixed',
-    left: `${hbtnRect.left}px`, top: `${hbtnRect.top}px`,
-    zIndex: '10001',
-    fontFamily: "'Share Tech Mono', monospace", fontSize: '14px',
-    letterSpacing: '3px', cursor: 'pointer',
-    color: lineColor,
-    textShadow: `0 0 8px ${lineColor}, 0 0 20px ${lineColor}`,
-    userSelect: 'none',
-  });
-  esc.addEventListener('click', hideHelp);
-  ov.appendChild(esc);
 
   // help grid
   const grid = document.createElement('div');
