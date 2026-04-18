@@ -2273,7 +2273,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
   // ── Wave palette per register ───────────────────────
   const bassWaves = ['sine','sine','triangle'];
   const midWaves  = ['sine','sine','triangle','triangle'];
-  const hiWaves   = ['sine','triangle','sine','triangle','square'];
+  const hiWaves   = ['sine','triangle','sine','triangle','triangle'];
   function waveFor(r) {
     if (r >= 12) return pick(bassWaves);
     if (r >= 5)  return pick(midWaves);
@@ -2284,7 +2284,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
   const gAtk     = rngR(prof.atkRange[0], prof.atkRange[1]);
   const gDetune  = rngR(0, 8);
   const gCutoff  = Math.round(rngR(prof.cutoffRange[0], prof.cutoffRange[1]));
-  const gRes     = rngR(0.5, 3.5);
+  const gRes     = rngR(0.5, 2.0);
   const gDist    = rng() < prof.distChance ? rngR(prof.distRange[0], prof.distRange[1]) : 0;
   const gDelay   = rngR(prof.delayRange[0], prof.delayRange[1]);
   const gReverb  = rngR(prof.reverbRange[0], prof.reverbRange[1]);
@@ -2333,7 +2333,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
 
   // ── Pattern-level shared modifiers (coherence) ──────
   const patternLfoBase  = rngR(prof.lfoRateRange[0], prof.lfoRateRange[1]);
-  const patternLfoShape = pick(['sine','sine','triangle','sawtooth']);
+  const patternLfoShape = pick(['sine','sine','triangle','triangle']);
   const patternDstShape = pick(prof.dstShapes);
 
   function makeAdsr() {
