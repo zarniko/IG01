@@ -587,8 +587,7 @@
     <div class="ctrl-panel">
 
       <div class="ctrl-row slider">
-        <button class="tui-btn" id="randBtn" tabindex="-1" style="flex-shrink:0; padding-right:4px;">rnd</button>
-        <button class="tui-btn" id="randRefresh" tabindex="-1" style="flex-shrink:0;">create</button>
+        <button class="tui-btn" id="randRefresh" tabindex="-1" style="flex-shrink:0;">generate</button>
         <div class="scale-wrap">
           <select id="moodSelect">
             <option value="auto" selected>auto</option>
@@ -601,7 +600,6 @@
         </div>
       </div>
       <div class="ctrl-row slider">
-        <button class="tui-btn" id="clearBtn" tabindex="-1" style="flex-shrink:0; padding-right:4px;">clr</button>
         <button class="tui-btn" id="clearRefresh" tabindex="-1" style="flex-shrink:0;">clear-grid</button>
       </div>
 
@@ -2160,11 +2158,15 @@ document.getElementById('waveGroup').addEventListener('click', e => {
   document.querySelectorAll('#waveGroup .tui-btn').forEach(b => b.classList.toggle('sel', b === btn));
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].wave = S.wave;
 });
-document.getElementById('clearBtn').addEventListener('click', () => {
-  for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
+document.getElementById('clearRefresh').addEventListener('click', (e) => {
+  if (e.shiftKey) {
+    for (let p = 0; p < N_PAGES; p++)
+      for (let r = 0; r < ROWS; r++) S.pages[p][r].fill(null);
+  } else {
+    for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
+  }
   clearSel(); renderAll();
 });
-document.getElementById('clearRefresh').addEventListener('click', () => document.getElementById('clearBtn').click());
 const MOOD_PROFILES = {
   ambient: {
     scales: ['major_pentatonic','hawaiian','hawaiian','japanese_miyakobushi','whole_tone','balinese_pelog','aeolian'],
@@ -2243,10 +2245,8 @@ const MOOD_PROFILES = {
   },
 };
 
-document.getElementById('randRefresh').addEventListener('click', () => document.getElementById('randBtn').click());
-
-document.getElementById('randBtn').addEventListener('click', () => {
-  for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
+document.getElementById('randRefresh').addEventListener('click', (e) => {
+  if (!e.shiftKey) for (let r = 0; r < ROWS; r++) S.pages[S.page][r].fill(null);
   clearSel();
 
   const rng  = () => Math.random();
@@ -2398,10 +2398,7 @@ document.getElementById('randBtn').addEventListener('click', () => {
     return flat.length >= steps ? flat.slice(0, steps) : flat.concat(new Array(steps - flat.length).fill(0));
   }
 
-  // ── Column density caps (max simultaneous voices) ───
-  const colCount = new Array(COLS).fill(0);
   const [vMin, vMax] = prof.voiceCountRange;
-  const MAX_VOICES = vMin + (rng() * (vMax - vMin + 1) | 0);
 
   // ── Per-note FX factory — varies by register ────────
   function noteFx(r) {
@@ -2420,8 +2417,180 @@ document.getElementById('randBtn').addEventListener('click', () => {
     };
   }
 
-  // ── Strategy chosen from mood profile ───────────────
-  const strategy = pick(prof.strategies);
+  if (e.shiftKey) {
+    // ── Full song generation across all 8 pages ─────────
+    //
+    // Algorithm:
+    //   • 8-section arc: intro → build → build → peak → peak → develop → breakdown → outro
+    //   • 4-chord harmonic progression cycling over the arc (I → IV → V → I)
+    //     Each chord is a set of preferred rows (pitch gravity centers)
+    //   • Seed Euclidean rhythm shared as DNA across all pages; mutated via
+    //     prime-number rotation per page so rhythm feels related but not identical
+    //   • Melodic motif (3-4 cells in mid-register) generated once and placed on
+    //     every page with harmonic transposition, retrograde, and col-offset transforms
+    //   • Ghost layer (sparse high notes) strongest in intro/outro; recedes at peak
+    //   • Per-note reverbSend / delaySend / cutoff scaled by arc position so the
+    //     sound opens up at peak and re-closes at outro
+    //
+    const ARC = [
+      // { d=density, rv=reverbMult, dl=delayMult, cf=cutoffScale, ch=chordIdx }
+      { d: 0.22, rv: 1.40, dl: 1.35, cf: 0.50, ch: 0 },  // 0 intro
+      { d: 0.42, rv: 1.15, dl: 1.12, cf: 0.70, ch: 0 },  // 1 build 1
+      { d: 0.62, rv: 0.92, dl: 0.88, cf: 0.85, ch: 1 },  // 2 build 2
+      { d: 0.85, rv: 0.76, dl: 0.70, cf: 1.00, ch: 1 },  // 3 peak 1
+      { d: 0.90, rv: 0.72, dl: 0.66, cf: 1.00, ch: 2 },  // 4 peak 2
+      { d: 0.65, rv: 0.88, dl: 0.84, cf: 0.88, ch: 2 },  // 5 develop
+      { d: 0.40, rv: 1.10, dl: 1.08, cf: 0.70, ch: 3 },  // 6 breakdown
+      { d: 0.22, rv: 1.35, dl: 1.30, cf: 0.52, ch: 3 },  // 7 outro
+    ];
+
+    // 4 harmonic gravity centers — row clusters that feel "in tune" for each chord
+    // Row 0 = highest pitch, Row 15 = lowest (bass). Spaced to approximate scale degrees.
+    const CHORDS = [
+      [0, 4, 7, 11, 15],  // I  tonic
+      [2, 5, 9, 13, 15],  // IV subdominant
+      [1, 3, 6, 10, 14],  // V  dominant (tension)
+      [0, 4, 8, 12, 14],  // I  tonic return (different voicing)
+    ];
+
+    // Seed Euclidean rhythm — rhythmic DNA shared across all pages
+    const seedK   = prof.strategies.includes('euclidean') ? pick([4,5,5,7]) : pick([3,5,7]);
+    const seedRot = rng() * COLS | 0;
+
+    // Melodic motif: 3-4 cells in mid-register, generated once
+    const MOTIF_N    = 3 + (rng() < 0.4 ? 1 : 0);
+    const motifBase  = 4 + (rng() * 5 | 0);
+    const motifCells = Array.from({ length: MOTIF_N }, (_, i) => ({
+      r: Math.max(0, Math.min(ROWS-1, motifBase + (rng() < 0.4 ? (rng() < 0.5 ? -1 : 1) : 0))),
+      c: Math.min(COLS-1, Math.floor(i * COLS / MOTIF_N + rngR(0, (COLS / MOTIF_N) * 0.5)) | 0),
+    }));
+
+    // Bass skeleton — same row and pulse family throughout
+    const bassRow    = 13 + (rng() * 3 | 0);
+    const baseSeedK  = pick([2,3,4,4]);
+
+    // Prime rotation offsets per page keep euclidean rhythm varied but genetically related
+    const PAGE_ROTS  = [0, 2, 5, 7, 11, 13, 3, 6];
+
+    for (let p = 0; p < N_PAGES; p++) {
+      const sec      = ARC[p];
+      const harmRows = CHORDS[sec.ch];
+      const page     = S.pages[p];
+      const colCount = new Array(COLS).fill(0);
+      const pageVox  = Math.max(1, vMin + (rng() * (vMax - vMin + 1) | 0));
+
+      for (let r = 0; r < ROWS; r++) page[r].fill(null);
+
+      const placeNote = (r, c, vol, decay, extra) => {
+        if (r < 0 || r >= ROWS || c < 0 || c >= COLS) return false;
+        if (page[r][c] || colCount[c] >= pageVox) return false;
+        const note = { wave: waveFor(r), vol, decay, scale: chosenScale, ...noteFx(r), ...(extra || {}) };
+        const inChord = harmRows.includes(r);
+        note.prob       = Math.min(1.0, (note.prob || 0.7) * (inChord ? 1.25 : 0.80) * (0.55 + sec.d * 0.45));
+        note.reverbSend = Math.min(0.92, (note.reverbSend || gReverb) * sec.rv);
+        note.delaySend  = Math.min(0.88, (note.delaySend  || gDelay)  * sec.dl);
+        note.cutoff     = Math.min(20000, Math.round((note.cutoff || gCutoff) * sec.cf));
+        applyMoodFx(note, r);
+        page[r][c] = note;
+        colCount[c]++;
+        return true;
+      };
+
+      // Bass — always present, pulse count scales with section density
+      const bK = Math.max(1, Math.round(baseSeedK * sec.d));
+      const bR = euclidean(COLS, bK);
+      for (let c = 0; c < COLS; c++) {
+        if (!bR[c]) continue;
+        placeNote(bassRow, c,
+          rngR(0.28, 0.50) * (0.7 + sec.d * 0.3),
+          rngR(0.70, 1.50),
+          { wave: pick(['sine','sine','triangle']) }
+        );
+      }
+
+      // Melodic motif — core musical idea, harmonically shaped per section
+      for (let i = 0; i < motifCells.length; i++) {
+        if (rng() > sec.d * 1.3) continue;
+        let { r, c } = motifCells[i];
+        // Nudge toward nearest chord-gravity row (within 2 rows)
+        const nearest = harmRows.reduce((a, b) => Math.abs(b-r) < Math.abs(a-r) ? b : a);
+        if (Math.abs(nearest - r) <= 2 && rng() < 0.60) r = nearest;
+        // Retrograde at peak 2; time-shifted at outro
+        if (p === 4) c = (COLS - 1 - c);
+        if (p === 7) c = (c + 5) % COLS;
+        placeNote(r, c, rngR(0.18, 0.38), rngR(0.22, 0.52));
+      }
+
+      // Euclidean melodic voices — added from build section onwards
+      if (sec.d > 0.35) {
+        const nV       = Math.max(1, Math.round(rngR(vMin, vMax) * sec.d));
+        const usedRows = new Set([bassRow]);
+        for (let v = 0; v < nV; v++) {
+          let r;
+          const cands = harmRows.filter(x => x < 12 && !usedRows.has(x));
+          if (cands.length && rng() < 0.65) {
+            r = pick(cands);
+          } else {
+            let att = 0;
+            do { r = rng() * 12 | 0; att++; } while (usedRows.has(r) && att < 20);
+          }
+          usedRows.add(r);
+
+          const rot    = (seedRot + PAGE_ROTS[p]) % COLS;
+          const kMod   = p >= 3 && p <= 4 ? 1 : 0;  // peak: +1 pulse for extra density
+          const rhythm = euclidean(COLS, Math.min(COLS-1, seedK + kMod));
+
+          for (let c = 0; c < COLS; c++) {
+            if (!rhythm[(c + rot) % COLS]) continue;
+            const vol   = r >= 12 ? rngR(0.28, 0.48) : r >= 5 ? rngR(0.18, 0.40) : rngR(0.10, 0.28);
+            const decay = r >= 12 ? rngR(0.5, 1.2)   : r >= 5 ? rngR(0.28, 0.65) : rngR(0.14, 0.38);
+            placeNote(r, c, vol * sec.d, decay);
+          }
+        }
+      }
+
+      // Polyrhythm layer — peak sections only, counter-rhythm against seed
+      if (sec.d >= 0.82) {
+        const polyK   = pick([3,5,7,11].filter(k => k !== seedK));
+        const polyRow = 2 + (rng() * 8 | 0);
+        const polyR   = euclidean(COLS, Math.min(polyK, COLS-1));
+        const polyRot = rng() * COLS | 0;
+        for (let c = 0; c < COLS; c++) {
+          if (!polyR[(c + polyRot) % COLS]) continue;
+          placeNote(polyRow, c, rngR(0.10, 0.26), rngR(0.14, 0.35));
+        }
+      }
+
+      // Ghost layer — sparse high notes, lush in intro/outro, recedes at peak
+      const isEdge  = p < 2 || p > 5;
+      const ghostMx = isEdge ? 1.6 : sec.d * 0.8;
+      const ghostN  = Math.round((2 + (rng() * 4 | 0)) * ghostMx);
+      for (let i = 0; i < ghostN; i++) {
+        const r = rng() * 5 | 0;
+        const c = rng() * COLS | 0;
+        if (page[r][c] || colCount[c] >= pageVox) continue;
+        const note = {
+          wave: 'sine',
+          vol:   rngR(0.04, 0.18) * (isEdge ? 1.2 : sec.d),
+          decay: rngR(0.28, 0.62),
+          scale: chosenScale,
+          ...noteFx(r),
+          prob: rngR(0.18, 0.50) * (isEdge ? 1.0 : sec.d),
+        };
+        applyMoodFx(note, r);
+        page[r][c] = note;
+      }
+    }
+
+    switchPage(0);
+    renderAll();
+    return;
+  }
+
+  // ── Single page (existing behaviour) ────────────────
+  const colCount  = new Array(COLS).fill(0);
+  const MAX_VOICES = vMin + (rng() * (vMax - vMin + 1) | 0);
+  const strategy  = pick(prof.strategies);
 
   const anchorSets = [[0,4,8,12], [0,6,12], [0,4,10], [0,8], [0,3,6,9,12]];
   const anchors = new Set(pick(anchorSets));
@@ -2545,8 +2714,8 @@ document.addEventListener('keydown', e => {
     e.preventDefault(); S.playing ? stopSeq() : startSeq();
   }
   if (e.key === 'h' || e.key === 'H') { helpVisible ? hideHelp() : showHelp(); }
-  if (e.key === 'c' || e.key === 'C') document.getElementById('clearBtn').click();
-  if (e.key === 'r' || e.key === 'R') document.getElementById('randBtn').click();
+  if (e.key === 'c' || e.key === 'C') document.getElementById('clearRefresh').click();
+  if (e.key === 'r' || e.key === 'R') document.getElementById('randRefresh').click();
   const pageNum = parseInt(e.key);
   if (pageNum >= 1 && pageNum <= 8) switchPage(pageNum - 1);
   if (e.code === 'ArrowUp') {
