@@ -606,11 +606,11 @@
       <div class="panel-rule"></div>
 
       <div class="ctrl-row slider">
-        <span class="ctrl-key">vol</span>
+        <span class="ctrl-key">mvol</span>
         <span class="s-brk">◄</span>
-        <input type="range" id="volSlider" min="0" max="100" value="70" step="1">
+        <input type="range" id="mvolSlider" min="0" max="100" value="80" step="1">
         <span class="s-brk">►</span>
-        <span class="ctrl-val" id="volVal">70%</span>
+        <span class="ctrl-val" id="mvolVal">80%</span>
       </div>
       <div class="ctrl-gap"></div>
 
@@ -691,6 +691,13 @@
         <!-- Tab 1: per-note controls -->
         <div id="fx-panel-1" class="tab-a-disabled" style="display:flex; flex-direction:column; gap:2px;">
           <div id="fx-panel-1-lbl" style="letter-spacing:2px; color:rgba(255,255,255,0.25); font-size:11px; margin-bottom:4px;">per note</div>
+          <div class="ctrl-row slider">
+            <span class="ctrl-key">vol</span>
+            <span class="s-brk">◄</span>
+            <input type="range" id="volSlider" min="0" max="100" value="70" step="1">
+            <span class="s-brk">►</span>
+            <span class="ctrl-val" id="volVal">70%</span>
+          </div>
           <div class="ctrl-row slider" data-lfo="atk">
             <span class="ctrl-key lfo-toggle" id="lfo-lbl-atk" data-param="atk">atk<span class="lfo-chev">›</span></span>
             <span class="s-brk">◄</span>
@@ -813,6 +820,11 @@
 
   </div><!-- /main-layout -->
 
+  <div id="poem-footnote" style="display:none; position:relative; margin-top:18px; padding:14px 16px 12px; border-top:1px solid #1a1a1a; font-family:'Share Tech Mono',monospace; font-size:11px; letter-spacing:1.2px; line-height:1.9; color:rgba(255,255,255,0.42); width:100%; box-sizing:border-box; overflow-wrap:break-word; word-break:break-word;">
+    <button id="poem-dismiss" tabindex="-1" style="position:absolute;top:10px;right:0;background:none;border:none;font-family:inherit;font-size:26px;letter-spacing:0;color:rgba(255,255,255,0.25);cursor:pointer;padding:0 2px;">×</button>
+    <p id="poem-text" style="margin:0;padding-right:18px;overflow-wrap:break-word;word-break:break-word;"></p>
+  </div>
+
 </div><!-- /instrument -->
 
 <script>
@@ -923,7 +935,7 @@ function ensureCtx() {
     analyser.fftSize = 256;
     analyser.smoothingTimeConstant = 0.75;
     master = audioCtx.createGain();
-    master.gain.value = 0.8;
+    master.gain.value = S.masterVol;
 
     // Tremolo — LFO → depthGain → tremoloGain.gain
     tremoloGain = audioCtx.createGain();
@@ -1146,6 +1158,7 @@ const S = {
   wave:    'sine',
   volume:  0.70,
   decay:   0.40,
+  masterVol: 0.80,
 };
 
 /* ── FX state ───────────────────────────────────────── */
@@ -2148,6 +2161,11 @@ document.getElementById('volSlider').addEventListener('input', function () {
   document.getElementById('volVal').textContent = `${this.value}%`;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].vol = S.volume;
 });
+document.getElementById('mvolSlider').addEventListener('input', function () {
+  S.masterVol = this.value / 100;
+  document.getElementById('mvolVal').textContent = `${this.value}%`;
+  if (master) master.gain.value = S.masterVol;
+});
 document.getElementById('scaleSelect').addEventListener('change', function () {
   S.scale = this.value;
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].scale = S.scale;
@@ -2158,6 +2176,50 @@ document.getElementById('waveGroup').addEventListener('click', e => {
   document.querySelectorAll('#waveGroup .tui-btn').forEach(b => b.classList.toggle('sel', b === btn));
   if (selR >= 0 && S.cells[selR][selC]) S.cells[selR][selC].wave = S.wave;
 });
+/* ── Poem footnote ──────────────────────────────────── */
+function hidePoem() {
+  document.getElementById('poem-footnote').style.display = 'none';
+}
+function showPoem(text) {
+  const fn = document.getElementById('poem-footnote');
+  fn.style.maxWidth = document.querySelector('.main-layout').offsetWidth + 'px';
+  document.getElementById('poem-text').textContent = text;
+  fn.style.display = 'block';
+}
+document.getElementById('poem-dismiss').addEventListener('click', hidePoem);
+
+function generatePoem(p) {
+  const { mode, mood, chosenScale, bpm, strategy,
+          seedK, MOTIF_N, bassRow, baseSeedK,
+          gReverb, gDelay, gTremolo, gCutoff, gDist, gFeedback, patternLfoBase } = p;
+
+  const scaleName = chosenScale.replace(/_/g,' ');
+
+  const rhythmFrag = (() => {
+    if (mode === 'song')
+      return `euclidean rhythm: ${seedK} pulses / 16 steps, rotated by prime offsets [0,2,5,7,11,13,3,6] per page`;
+    if (strategy === 'euclidean')
+      return `euclidean rhythm: Bjorklund distribution across 16 steps`;
+    if (strategy === 'anchor-scatter')
+      return `anchor-scatter: fixed columns + probabilistic offset voices`;
+    return `polyrhythm: overlapping euclidean cycles at coprime pulse counts`;
+  })();
+
+  const fxFrag = [
+    `reverb ${Math.round(gReverb*100)}%`,
+    `delay ${Math.round(gDelay*100)}% / fdb ${Math.round(gFeedback*100)}%`,
+    gCutoff < 18000 ? `lpf ${gCutoff >= 1000 ? (gCutoff/1000).toFixed(1)+'kHz' : Math.round(gCutoff)+'Hz'}` : null,
+    gDist > 0.01 ? `dist ${Math.round(gDist*100)}%` : null,
+    gTremolo > 0 ? `tremolo ${gTremolo.toFixed(1)}Hz` : null,
+  ].filter(Boolean).join(', ');
+
+  const arcFrag = mode === 'song'
+    ? ` 8-page arc: intro → build ×2 → peak ×2 → develop → breakdown → outro. Bass seed: ${baseSeedK} pulses. Melodic motif: ${MOTIF_N} notes, transposed + retrograded per section. Chord gravity: I → IV → V → I.`
+    : '';
+
+  return `mood: ${mood} / scale: ${scaleName} / ${bpm} bpm. ${rhythmFrag}. fx: ${fxFrag}.${arcFrag}`;
+}
+
 document.getElementById('clearRefresh').addEventListener('click', (e) => {
   if (e.shiftKey) {
     for (let p = 0; p < N_PAGES; p++)
@@ -2584,6 +2646,11 @@ document.getElementById('randRefresh').addEventListener('click', (e) => {
 
     switchPage(0);
     renderAll();
+    showPoem(generatePoem({
+      mode: 'song', mood, chosenScale, bpm, strategy: null,
+      seedK, MOTIF_N, bassRow, baseSeedK,
+      gReverb, gDelay, gTremolo, gCutoff, gDist, gFeedback, patternLfoBase,
+    }));
     return;
   }
 
@@ -2705,6 +2772,11 @@ document.getElementById('randRefresh').addEventListener('click', (e) => {
   }
 
   renderAll();
+  showPoem(generatePoem({
+    mode: 'single', mood, chosenScale, bpm, strategy,
+    seedK: null, MOTIF_N: null, bassRow: null, baseSeedK: null,
+    gReverb, gDelay, gTremolo, gCutoff, gDist, gFeedback, patternLfoBase,
+  }));
 });
 document.addEventListener('keydown', e => {
   if (e.code === 'ArrowUp' || e.code === 'ArrowDown') e.preventDefault();
@@ -3158,9 +3230,10 @@ function serializeState() {
     page:    S.page,
     bpm:     S.bpm,
     scale:   S.scale,
-    wave:    S.wave,
-    volume:  S.volume,
-    decay:   S.decay,
+    wave:      S.wave,
+    volume:    S.volume,
+    masterVol: S.masterVol,
+    decay:     S.decay,
     fx:      {...FX},
     accent:  lineColor,
     mutedRows: [...mutedRows],
@@ -3213,8 +3286,10 @@ function restoreState(data) {
   S.bpm    = data.bpm    ?? 120;
   S.scale  = data.scale  ?? 'major_pentatonic';
   S.wave   = data.wave   ?? 'sine';
-  S.volume = data.volume ?? 0.70;
-  S.decay  = data.decay  ?? 0.40;
+  S.volume    = data.volume    ?? 0.70;
+  S.masterVol = data.masterVol ?? 0.80;
+  S.decay     = data.decay     ?? 0.40;
+  if (master) master.gain.value = S.masterVol;
   Object.assign(FX, data.fx ?? {});
   if (data.accent) setAccent(data.accent);
 
@@ -3223,6 +3298,8 @@ function restoreState(data) {
   document.getElementById('bpmVal').textContent = S.bpm;
   document.getElementById('volSlider').value = Math.round(S.volume * 100);
   document.getElementById('volVal').textContent = `${Math.round(S.volume * 100)}%`;
+  document.getElementById('mvolSlider').value = Math.round(S.masterVol * 100);
+  document.getElementById('mvolVal').textContent = `${Math.round(S.masterVol * 100)}%`;
   document.getElementById('scaleSelect').value = S.scale;
   document.querySelectorAll('#waveGroup .tui-btn').forEach(b =>
     b.classList.toggle('sel', b.dataset.wave === S.wave));
