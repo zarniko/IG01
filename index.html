@@ -2229,6 +2229,32 @@ document.getElementById('clearRefresh').addEventListener('click', (e) => {
   }
   clearSel(); renderAll();
 });
+
+// Long-press on generate / clear-grid = all-pages variant (mobile shift substitute)
+(function() {
+  function addLongPress(id, onLong) {
+    const el = document.getElementById(id);
+    let timer = null;
+    el.addEventListener('touchstart', e => {
+      timer = setTimeout(() => { timer = null; onLong(); }, 350);
+    }, { passive: true });
+    el.addEventListener('touchmove', () => { if (timer) { clearTimeout(timer); timer = null; } }, { passive: true });
+    el.addEventListener('touchend', () => { if (timer) { clearTimeout(timer); timer = null; } }, { passive: true });
+  }
+
+  addLongPress('clearRefresh', () => {
+    for (let p = 0; p < N_PAGES; p++)
+      for (let r = 0; r < ROWS; r++) S.pages[p][r].fill(null);
+    clearSel(); renderAll();
+  });
+
+  addLongPress('randRefresh', () => {
+    document.getElementById('randRefresh').dispatchEvent(
+      new MouseEvent('click', { bubbles: true, shiftKey: true })
+    );
+  });
+})();
+
 const MOOD_PROFILES = {
   ambient: {
     scales: ['major_pentatonic','hawaiian','hawaiian','japanese_miyakobushi','whole_tone','balinese_pelog','aeolian'],
@@ -2828,7 +2854,9 @@ const HELP_COLS = [
   ['row',  'tap note',        'select / deselect', true],
   ['row',  'long-press note', 'erase note',        true],
   ['row',  'drag',            'paint / erase',     true],
-  ['row',  'tap A / B',       'toggle fx panels',  true],
+  ['row',  'tap A / B',            'toggle fx panels',   true],
+  ['row',  'long-press generate', 'fill all 8 pages',   true],
+  ['row',  'long-press clear',    'clear all 8 pages',  true],
   ['gap'],
   ['head', 'PAGES', ''],
   ['row',  '1 – 8',   'switch page'],
